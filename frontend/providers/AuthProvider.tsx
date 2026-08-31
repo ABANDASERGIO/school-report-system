@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import type { User } from "@/types";
 import { UserRole } from "@/types/enums";
+import { authService } from "@/services/auth.service";
+import { apiClient } from "@/lib/api-client";
 
 interface AuthContextType {
   user: User | null;
@@ -21,30 +23,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Restore session from localStorage
-    const stored = localStorage.getItem("edugrade_user");
-    const token = localStorage.getItem("edugrade_token");
-    if (stored && token) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {
-        localStorage.removeItem("edugrade_user");
-        localStorage.removeItem("edugrade_token");
+    // Restore session by calling the backend
+    const restoreSession = async () => {
+      if (!apiClient.isAuthenticated()) {
+        setUser(null);
+        setIsLoading(false);
+        return;
       }
-    }
-    setIsLoading(false);
+      try {
+        const me = await authService.getCurrentUser();
+        setUser(me);
+      } catch {
+        apiClient.clearAuth();
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    restoreSession();
   }, []);
 
   const login = useCallback((userData: User, token: string) => {
     setUser(userData);
-    localStorage.setItem("edugrade_user", JSON.stringify(userData));
-    localStorage.setItem("edugrade_token", token);
+    apiClient.setToken(token);
+    apiClient.setUser(userData);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await authService.logout();
     setUser(null);
-    localStorage.removeItem("edugrade_user");
-    localStorage.removeItem("edugrade_token");
   }, []);
 
   return (
@@ -71,4 +78,3 @@ export function useAuth() {
   }
   return context;
 }
-
