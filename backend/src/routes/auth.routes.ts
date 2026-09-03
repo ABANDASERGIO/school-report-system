@@ -8,6 +8,9 @@ import {
   resetPasswordSchema,
   refreshTokenSchema,
   forgotPasswordSchema,
+  requestCodeSchema,
+  verifyCodeSchema,
+  changePasswordSchema,
 } from '../validators/auth.validator';
 
 const router = Router();
@@ -47,7 +50,9 @@ router.post(
 
 /**
  * POST /api/v1/auth/forgot-password
- * Look up a proprietor account by email for the recovery flow.
+ * Legacy lookup used by older clients. The new recovery flow is
+ * /auth/request-code (purpose=FORGOT_PASSWORD) followed by
+ * /auth/reset-password (which now requires the code).
  * Public route.
  */
 router.post(
@@ -57,8 +62,31 @@ router.post(
 );
 
 /**
+ * POST /api/v1/auth/request-code
+ * Issue a 6-digit verification code for password reset, email change, etc.
+ * Public route.
+ */
+router.post(
+  '/request-code',
+  validateBody(requestCodeSchema),
+  authController.requestCode
+);
+
+/**
+ * POST /api/v1/auth/verify-code
+ * Check whether a verification code is valid (does not consume it for a
+ * state change). Public route.
+ */
+router.post(
+  '/verify-code',
+  validateBody(verifyCodeSchema),
+  authController.verifyCode
+);
+
+/**
  * POST /api/v1/auth/reset-password
- * Reset a proprietor password.
+ * Reset a proprietor password. Requires a valid code issued by /request-code
+ * with purpose=FORGOT_PASSWORD.
  * Public route.
  */
 router.post(
@@ -87,5 +115,17 @@ router.get('/me', authenticate, authController.me);
  * Protected route (so we know who is logging out).
  */
 router.post('/logout', authenticate, authController.logout);
+
+/**
+ * POST /api/v1/auth/change-password
+ * Authenticated self-service password change. Requires the current password.
+ * Protected route.
+ */
+router.post(
+  '/change-password',
+  authenticate,
+  validateBody(changePasswordSchema),
+  authController.changePassword
+);
 
 export default router;

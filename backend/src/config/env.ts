@@ -49,6 +49,16 @@ export const env = {
     apiSecret: getOptionalEnvVar('CLOUDINARY_API_SECRET'),
   },
 
+  // Mail (SMTP) - if any of host/user/pass is missing, mail.service falls back to
+  // console logging (useful for local dev / tests).
+  mail: {
+    host: getOptionalEnvVar('SMTP_HOST'),
+    port: getEnvNumber('SMTP_PORT', 587),
+    user: getOptionalEnvVar('SMTP_USER'),
+    pass: getOptionalEnvVar('SMTP_PASS'),
+    from: getOptionalEnvVar('MAIL_FROM', 'EduGrade <no-reply@edugrade.local>'),
+  },
+
   isProduction: process.env.NODE_ENV === 'production',
   isDevelopment: process.env.NODE_ENV === 'development',
 };

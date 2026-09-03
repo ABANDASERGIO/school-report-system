@@ -2,7 +2,8 @@
 
 import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { teacherService, mockUploadToCloudinary } from "@/services/teacher.service";
+import { teacherService, uploadTeacherPhoto } from "@/services/teacher.service";
+import { uploadService } from "@/services/upload.service";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -29,7 +30,6 @@ export default function CreateTeacherPage() {
     email: "",
     phone: "",
     address: "",
-    specialization: "",
     password: "temp1234",
     photoUrl: "",
     photoPublicId: "",
@@ -42,7 +42,6 @@ export default function CreateTeacherPage() {
     if (!formData.lastName.trim()) newErrors.lastName = "Last name is required";
     if (!formData.email.trim()) newErrors.email = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Invalid email format";
-    if (!formData.specialization.trim()) newErrors.specialization = "Specialization is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -55,12 +54,14 @@ export default function CreateTeacherPage() {
       return;
     }
     try {
+      // Use a temporary hint until the teacher is created; the public_id will
+      // be re-keyed on the next upload once the teacher has a stable id.
       const tempId = `temp-${Date.now()}`;
-      const result = await mockUploadToCloudinary(file, "teachers", tempId);
+      const result = await uploadTeacherPhoto(file, tempId);
       setPhotoPreview(result.url);
       setFormData((prev) => ({ ...prev, photoUrl: result.url, photoPublicId: result.publicId }));
-    } catch {
-      showToast({ type: "error", title: "Failed to upload photo" });
+    } catch (err: any) {
+      showToast({ type: "error", title: "Failed to upload photo", message: err.message });
     }
   };
 
@@ -77,6 +78,19 @@ export default function CreateTeacherPage() {
     setIsSaving(true);
     try {
       const teacher = await teacherService.createTeacher(formData);
+      // If a photo was uploaded before the teacher had an id, re-key the
+      // Cloudinary asset to live under the canonical teacher id so it
+      // doesn't sit in a temp-* orphan. We also re-upload the file in the
+      // (rare) case rebind fails, to guarantee the photo sticks.
+      if (formData.photoPublicId && formData.photoPublicId.includes("/temp-")) {
+        const rebind = await uploadService.rebindPhoto("teacher", formData.photoPublicId, teacher.id);
+        if (rebind) {
+          await teacherService.updateTeacher(teacher.id, {
+            photoUrl: rebind.url || formData.photoUrl,
+            photoPublicId: rebind.publicId,
+          });
+        }
+      }
       showToast({
         type: "success",
         title: "Teacher created!",
@@ -106,9 +120,6 @@ export default function CreateTeacherPage() {
               <Input label="Email Address" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} error={errors.email} placeholder="teacher@school.com" />
               <Input label="Phone Number" type="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="+237 670 000 000" />
               <Input label="Address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="City, Street" />
-              <div className="sm:col-span-2">
-                <Input label="Specialization / Subject" value={formData.specialization} onChange={(e) => setFormData({ ...formData, specialization: e.target.value })} error={errors.specialization} placeholder="e.g., Mathematics, Physics, English" />
-              </div>
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-primary mb-1">Profile Photo</label>
                 <div className="flex items-center gap-4">

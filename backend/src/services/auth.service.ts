@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { UserRole, User } from '@prisma/client';
+import { UserRole, User, VerificationPurpose } from '@prisma/client';
 import { prisma } from '../config/database';
 import { ApiErrorClass } from '../utils/response';
 import {
@@ -13,7 +13,13 @@ import type {
   RegisterInput,
   LoginInput,
   ResetPasswordInput,
+  ChangePasswordInput,
 } from '../validators/auth.validator';
+import { verificationCodeService } from './verification-code.service';
+import { mailService, buildBrandedHtml } from './mail.service';
+import { APP_NAME } from '../config/constants';
+import { auditLogService } from './audit-log.service';
+import { notificationService } from './notification.service';
 
 const BCRYPT_COST = 12;
 
@@ -135,6 +141,34 @@ export const authService = {
       });
     }
 
+    // Best-effort welcome email. We do not block registration on mail failures.
+    try {
+      const html = buildBrandedHtml({
+        preheader: `Welcome to ${APP_NAME}!`,
+        heading: `Welcome to ${APP_NAME}`,
+        bodyHtml: `
+          <p style="margin:0 0 16px 0;">Hello <strong>${input.firstName}</strong>,</p>
+          <p style="margin:0 0 16px 0;">Your <strong>${APP_NAME}</strong> proprietor account has been created.</p>
+          ${input.schoolName ? `<p style="margin:0 0 16px 0;">School: <strong>${input.schoolName}</strong></p>` : ''}
+          <p style="margin:0;color:#475569;">You can sign in with the email address you used to register.</p>
+        `,
+      });
+      const text =
+        `Hello ${input.firstName},\n\n` +
+        `Your ${APP_NAME} proprietor account has been created.\n\n` +
+        (input.schoolName ? `School: ${input.schoolName}\n\n` : '') +
+        `You can sign in with the email you used to register.`;
+      await mailService.send({
+        to: input.email,
+        subject: `Welcome to ${APP_NAME}`,
+        text,
+        html,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[auth.registerProprietor] Failed to send welcome email:', err);
+    }
+
     return buildAuthResult(newUser);
   },
 
@@ -216,10 +250,17 @@ export const authService = {
   },
 
   /**
-   * Reset password for a proprietor account by email.
-   * Only proprietor accounts can be reset through this flow.
+   * Reset a proprietor password using a previously-issued verification code.
+   * Verifies the code, ensures the email belongs to a proprietor, and only then
+   * hashes and stores the new password.
    */
   async resetPasswordByEmail(input: ResetPasswordInput): Promise<void> {
+    await verificationCodeService.verifyCode({
+      email: input.email,
+      code: input.code,
+      purpose: VerificationPurpose.FORGOT_PASSWORD,
+    });
+
     const user = await prisma.user.findUnique({
       where: { email: input.email.toLowerCase() },
     });
@@ -253,5 +294,69 @@ export const authService = {
       where: { role: UserRole.PROPRIETOR },
     });
     return count > 0;
+  },
+
+  /**
+   * Authenticated self-service password change. Verifies the current
+   * password, hashes and stores the new one, audit-logs the change, and
+   * drops a notification on the user's bell inbox. Inactive users cannot
+   * change their own password.
+   */
+  async changePassword(userId: string, input: ChangePasswordInput): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new ApiErrorClass(404, 'User not found', 'UserNotFound');
+    }
+    if (!user.isActive) {
+      throw new ApiErrorClass(403, 'Account is deactivated', 'AccountDeactivated');
+    }
+
+    const ok = await bcrypt.compare(input.currentPassword, user.password);
+    if (!ok) {
+      throw new ApiErrorClass(401, 'Current password is incorrect', 'InvalidCurrentPassword');
+    }
+
+    // Defensive: don't allow setting the same password.
+    const sameAsBefore = await bcrypt.compare(input.newPassword, user.password);
+    if (sameAsBefore) {
+      throw new ApiErrorClass(
+        400,
+        'New password must be different from the current password.',
+        'PasswordUnchanged'
+      );
+    }
+
+    const hashed = await bcrypt.hash(input.newPassword, BCRYPT_COST);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashed },
+    });
+
+    // Best-effort audit + notification. Failures are logged but never break
+    // the request (matches the pattern used elsewhere).
+    try {
+      await auditLogService.log({
+        userId: user.id,
+        userEmail: user.email,
+        action: 'PASSWORD_CHANGED',
+        entityType: 'User',
+        entityId: user.id,
+        payload: { selfService: true },
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[auth.changePassword] audit log failed:', err);
+    }
+    try {
+      await notificationService.push({
+        userId: user.id,
+        title: 'Password changed',
+        body: 'Your password was changed successfully. If this was not you, contact the proprietor immediately.',
+        link: '/settings',
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[auth.changePassword] notification failed:', err);
+    }
   },
 };

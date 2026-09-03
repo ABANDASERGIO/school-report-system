@@ -10,13 +10,6 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Simulated delay for async mock service calls.
- */
-export function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
  * Format a score with 1 decimal place.
  */
 export function formatScore(score: number | null | undefined): string {

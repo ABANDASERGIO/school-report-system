@@ -1,70 +1,52 @@
-import type { ProprietorDashboardData, TeacherDashboardData } from "@/types";
-import { delay } from "@/lib/utils";
-import { mockTeachers } from "./teacher.service";
-import { sessionService } from "./session.service";
+import type {
+  ProprietorDashboardData,
+  TeacherDashboardData,
+} from '@/types';
+import { apiClient } from '@/lib/api-client';
 
-export const dashboardService = {
-  async getProprietorDashboard(): Promise<ProprietorDashboardData> {
-    await delay(600);
-    const currentSession = await sessionService.getCurrentSession();
-    return {
-      totalStudents: 128,
-      totalTeachers: 12,
-      activeTeachers: 10,
-      totalClasses: 10,
-      totalSubjects: 12,
-      pendingResults: 24,
-      submittedResults: 156,
-      currentSession,
-      recentEnrollments: 8,
-    };
-  },
-
-  async getTeacherDashboard(teacherId: string): Promise<TeacherDashboardData> {
-    await delay(600);
-    const currentSession = await sessionService.getCurrentSession();
-    return {
-      teacher: {
-        id: teacherId,
-        userId: "usr-002",
-        firstName: "John",
-        lastName: "Doe",
-        email: "john.teacher@edugrade.com",
-        phone: "+237 670 123 456",
-        address: "Molyko, Buea",
-        specialization: "Mathematics",
-        isActive: true,
-        createdAt: "2025-01-15T00:00:00Z",
-        updatedAt: "2025-01-15T00:00:00Z",
-      },
-      assignments: [
-        {
-          id: "asg-001",
-          teacherId,
-          classId: "cls-001",
-          subjectId: "sub-001",
-          sessionId: currentSession?.id || "ses-003",
-        },
-        {
-          id: "asg-002",
-          teacherId,
-          classId: "cls-002",
-          subjectId: "sub-001",
-          sessionId: currentSession?.id || "ses-003",
-        },
-        {
-          id: "asg-003",
-          teacherId,
-          classId: "cls-003",
-          subjectId: "sub-001",
-          sessionId: currentSession?.id || "ses-003",
-        },
-      ],
-      currentSession,
-      totalStudents: 45,
-      pendingResults: 12,
-      submittedResults: 18,
-    };
-  },
+// Enriched shapes returned by the backend. The base types in
+// `types/models.ts` are a strict subset, so the extra fields are
+// additive (caller can read them via casting).
+export type ProprietorDashboard = ProprietorDashboardData & {
+  lockedResults?: number;
+  totalAssignments?: number;
 };
 
+export type TeacherDashboardAssignment = {
+  id: string;
+  teacherId: string;
+  classId: string;
+  className: string;
+  classCode: string;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  subjectCoefficient: number;
+  sessionId: string;
+  sessionName: string;
+};
+
+export type TeacherDashboard = Omit<TeacherDashboardData, 'assignments'> & {
+  assignments: TeacherDashboardAssignment[];
+  totalClasses?: number;
+  totalSubjects?: number;
+  lockedResults?: number;
+};
+
+export const dashboardService = {
+  /**
+   * Proprietor dashboard. Backend enforces role=PROPRIETOR.
+   */
+  async getProprietorDashboard(): Promise<ProprietorDashboard> {
+    return apiClient.get<ProprietorDashboard>('/dashboard/proprietor');
+  },
+
+  /**
+   * Teacher dashboard for the currently authenticated user. The
+   * `teacherId` argument is ignored — the backend uses req.user.userId.
+   * Kept as an optional argument for API symmetry.
+   */
+  async getTeacherDashboard(_teacherId?: string): Promise<TeacherDashboard> {
+    return apiClient.get<TeacherDashboard>('/dashboard/teacher');
+  },
+};

@@ -213,7 +213,7 @@ export default function AssignmentsPage() {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <Select label="Academic Year" value={formData.sessionId} onChange={(e) => setFormData({ ...formData, sessionId: e.target.value, teacherId: "", classId: "", subjectId: "" })} options={sessions.map((s) => ({ value: s.id, label: s.name }))} placeholder="Select year" />
-              <Select label="Teacher" value={formData.teacherId} onChange={(e) => setFormData({ ...formData, teacherId: e.target.value })} options={teachers.map((t) => ({ value: t.id, label: `${t.firstName} ${t.lastName} (${t.specialization})` }))} placeholder="Select teacher" disabled={!formData.sessionId} />
+              <Select label="Teacher" value={formData.teacherId} onChange={(e) => setFormData({ ...formData, teacherId: e.target.value })} options={teachers.map((t) => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))} placeholder="Select teacher" disabled={!formData.sessionId} />
               <Select label="Class" value={formData.classId} onChange={(e) => setFormData({ ...formData, classId: e.target.value, subjectId: "" })} options={classes.map((c) => ({ value: c.id, label: c.name }))} placeholder="Select class" disabled={!formData.sessionId} />
               <Select label="Subject" value={formData.subjectId} onChange={(e) => setFormData({ ...formData, subjectId: e.target.value })} options={availableSubjects.map((s) => ({ value: s.id, label: s.name }))} placeholder="Select subject" disabled={!formData.classId} />
             </div>
@@ -231,7 +231,7 @@ export default function AssignmentsPage() {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <Select label="Academic Year" value={editFormData.sessionId} onChange={(e) => setEditFormData({ ...editFormData, sessionId: e.target.value, classId: "", subjectId: "" })} options={sessions.map((s) => ({ value: s.id, label: s.name }))} placeholder="Select year" />
-              <Select label="Teacher" value={editFormData.teacherId} onChange={(e) => setEditFormData({ ...editFormData, teacherId: e.target.value })} options={teachers.map((t) => ({ value: t.id, label: `${t.firstName} ${t.lastName} (${t.specialization})` }))} placeholder="Select teacher" disabled={!editFormData.sessionId} />
+              <Select label="Teacher" value={editFormData.teacherId} onChange={(e) => setEditFormData({ ...editFormData, teacherId: e.target.value })} options={teachers.map((t) => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))} placeholder="Select teacher" disabled={!editFormData.sessionId} />
               <Select label="Class" value={editFormData.classId} onChange={(e) => setEditFormData({ ...editFormData, classId: e.target.value, subjectId: "" })} options={classes.map((c) => ({ value: c.id, label: c.name }))} placeholder="Select class" disabled={!editFormData.sessionId} />
               <Select label="Subject" value={editFormData.subjectId} onChange={(e) => setEditFormData({ ...editFormData, subjectId: e.target.value })} options={availableSubjects.map((s) => ({ value: s.id, label: s.name }))} placeholder="Select subject" disabled={!editFormData.classId} />
             </div>

@@ -4,6 +4,22 @@ import { env } from './config/env';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { API_PREFIX } from './config/constants';
 import authRoutes from './routes/auth.routes';
+import teacherRoutes from './routes/teacher.routes';
+import settingsRoutes from './routes/settings.routes';
+import sessionRoutes from './routes/session.routes';
+import termRoutes from './routes/term.routes';
+import sequenceRoutes from './routes/sequence.routes';
+import classRoutes from './routes/class.routes';
+import subjectRoutes from './routes/subject.routes';
+import enrollmentRoutes from './routes/enrollment.routes';
+import studentRoutes from './routes/student.routes';
+import assignmentRoutes from './routes/assignment.routes';
+import resultRoutes from './routes/result.routes';
+import dashboardRoutes from './routes/dashboard.routes';
+import reportCardRoutes from './routes/report-card.routes';
+import notificationRoutes from './routes/notification.routes';
+import auditLogRoutes from './routes/audit-log.routes';
+import uploadRoutes from './routes/upload.routes';
 
 export function createApp(): Application {
   const app = express();
@@ -39,6 +55,22 @@ export function createApp(): Application {
 
   // API routes
   app.use(`${API_PREFIX}/auth`, authRoutes);
+  app.use(`${API_PREFIX}/teachers`, teacherRoutes);
+  app.use(`${API_PREFIX}/settings`, settingsRoutes);
+  app.use(`${API_PREFIX}/sessions`, sessionRoutes);
+  app.use(`${API_PREFIX}/terms`, termRoutes);
+  app.use(`${API_PREFIX}/sequences`, sequenceRoutes);
+  app.use(`${API_PREFIX}/classes`, classRoutes);
+  app.use(`${API_PREFIX}/subjects`, subjectRoutes);
+  app.use(`${API_PREFIX}/enrollments`, enrollmentRoutes);
+  app.use(`${API_PREFIX}/students`, studentRoutes);
+  app.use(`${API_PREFIX}/assignments`, assignmentRoutes);
+  app.use(`${API_PREFIX}/results`, resultRoutes);
+  app.use(`${API_PREFIX}/dashboard`, dashboardRoutes);
+  app.use(`${API_PREFIX}/report-cards`, reportCardRoutes);
+  app.use(`${API_PREFIX}/notifications`, notificationRoutes);
+  app.use(`${API_PREFIX}/audit-logs`, auditLogRoutes);
+  app.use(`${API_PREFIX}/uploads`, uploadRoutes);
 
   // Catch-all for unimplemented API routes
   app.use(API_PREFIX, (_req: Request, res: Response) => {

@@ -18,6 +18,14 @@ export const metadata: Metadata = {
   description:
     "A modern, mobile-first school result management system for secondary schools.",
   keywords: ["school", "results", "grades", "management", "education"],
+  icons: {
+    icon: [
+      { url: "/icon.png", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    shortcut: { url: "/favicon.ico", sizes: "any" },
+    apple: { url: "/apple-icon.png", type: "image/png" },
+  },
 };
 
 export default function RootLayout({

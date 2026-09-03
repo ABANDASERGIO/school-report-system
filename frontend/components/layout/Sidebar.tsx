@@ -2,11 +2,12 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
 import { proprietorNavItems, teacherNavItems, APP_NAME } from "@/lib/constants";
-import { GraduationCap, X } from "lucide-react";
+import { X } from "lucide-react";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -41,8 +42,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Logo */}
         <div className="flex items-center justify-between h-16 px-6 border-b border-white/10">
           <Link href="/" className="flex items-center gap-2.5" onClick={onClose}>
-            <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
-              <GraduationCap className="h-5 w-5 text-white" />
+            <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-white">
+              <Image src="/logo.png" alt={`${APP_NAME} logo`} fill sizes="32px" className="object-contain p-0.5" />
             </div>
             <span className="font-bold text-lg">{APP_NAME}</span>
           </Link>

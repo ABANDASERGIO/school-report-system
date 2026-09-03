@@ -1,8 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { settingsService } from "@/services/settings.service";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/providers/AuthProvider";
 import { Modal } from "@/components/ui/Modal";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
@@ -10,37 +8,58 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { showToast } from "@/components/ui/Toast";
+import { settingsService } from "@/services/settings.service";
+import { authService } from "@/services/auth.service";
+import { uploadService } from "@/services/upload.service";
 import type { SchoolSetting } from "@/types";
-import { Save, Settings as SettingsIcon, User, Mail, Phone, Lock, Eye, EyeOff, KeyRound, Upload, X } from "lucide-react";
+import { Save, Settings as SettingsIcon, User, Mail, Phone, Lock, Eye, EyeOff, KeyRound, Upload, X, RefreshCw } from "lucide-react";
 
-function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
+const SETTING_LABELS: Record<string, string> = {
+  school_name: "School Name",
+  school_motto: "School Motto",
+  school_address: "School Address",
+  school_phone: "Phone Number",
+  school_email: "Email Address",
+  school_logo: "School Logo URL",
+  principal_name: "Principal Name",
+  class_teacher_name: "Default Class Teacher Name",
+  attendance_days: "Total School Days",
+  attendance_present: "Total Days Present (default)",
+  grading_system: "Grading System",
+  max_score: "Maximum Score",
+  pass_mark: "Pass Mark",
+  academic_year_format: "Academic Year Format",
+  marks_entry_open: "Marks Entry Open",
+};
+
+const SETTING_TYPES: Record<string, "text" | "number" | "email" | "tel" | "url"> = {
+  school_email: "email",
+  school_phone: "tel",
+  school_logo: "url",
+  max_score: "number",
+  pass_mark: "number",
+  attendance_days: "number",
+  attendance_present: "number",
+};
 
 export default function SettingsPage() {
   const { user, isProprietor } = useAuth();
-  const router = useRouter();
   const [settings, setSettings] = useState<SchoolSetting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [logoPreview, setLogoPreview] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Proprietor profile state
+  // Profile state
   const [profileData, setProfileData] = useState({
-    name: "Proprietor",
-    email: user?.email || "proprietor@edugrade.com",
-    phone: "+237 670 000 001",
+    name: user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "Proprietor",
+    email: user?.email || "",
   });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
-  // Password change state
+  // Password state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordData, setPasswordData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [showCurrentPw, setShowCurrentPw] = useState(false);
@@ -48,16 +67,34 @@ export default function SettingsPage() {
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState("");
 
-  useEffect(() => {
-    settingsService.getAllSettings().then((data) => {
+  const loadSettings = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await settingsService.getAllSettings();
       setSettings(data);
       const initial: Record<string, string> = {};
       data.forEach((s) => { initial[s.key] = s.value; });
       setFormData(initial);
       const logo = data.find((s) => s.key === "school_logo");
       if (logo?.value) setLogoPreview(logo.value);
-    }).finally(() => setIsLoading(false));
+    } catch (error) {
+      console.error("Failed to load settings:", error);
+      showToast({ type: "error", title: "Failed to load settings" });
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  // Keep profile email in sync with logged-in user
+  useEffect(() => {
+    if (user?.email) {
+      setProfileData((prev) => ({ ...prev, email: user.email }));
+    }
+  }, [user?.email]);
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -66,26 +103,73 @@ export default function SettingsPage() {
       showToast({ type: "error", title: "Invalid file", message: "Please select an image file." });
       return;
     }
-    const base64 = await readFileAsBase64(file);
-    setLogoPreview(base64);
-    setFormData((prev) => ({ ...prev, school_logo: base64 }));
+    if (file.size > 2 * 1024 * 1024) {
+      showToast({ type: "error", title: "File too large", message: "Maximum size is 2MB." });
+      return;
+    }
+    setIsUploadingLogo(true);
+    try {
+      const result = await uploadService.uploadSchoolLogo(file);
+      setLogoPreview(result.url);
+      setFormData((prev) => ({ ...prev, school_logo: result.url }));
+      // Reload so the cached settings list picks up the new URL.
+      await loadSettings();
+      showToast({ type: "success", title: "Logo uploaded" });
+    } catch (err: any) {
+      showToast({ type: "error", title: "Failed to upload logo", message: err.message });
+    } finally {
+      setIsUploadingLogo(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
-  const clearLogo = () => {
+  const clearLogo = async () => {
+    const previous = formData.school_logo;
     setLogoPreview("");
     setFormData((prev) => ({ ...prev, school_logo: "" }));
     if (fileInputRef.current) fileInputRef.current.value = "";
+    if (previous) {
+      try {
+        await settingsService.updateSetting("school_logo", "");
+        await loadSettings();
+        showToast({ type: "success", title: "Logo removed" });
+      } catch (err: any) {
+        showToast({ type: "error", title: "Failed to remove logo", message: err.message });
+      }
+    }
   };
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await settingsService.updateSettings(
-        settings.map((s) => ({ key: s.key, value: formData[s.key] || s.value }))
-      );
+      const settingsToUpdate = settings
+        .filter((s) => s.value !== formData[s.key])
+        .map((s) => ({ key: s.key, value: formData[s.key] ?? "" }));
+
+      if (settingsToUpdate.length === 0) {
+        showToast({ type: "info", title: "No changes to save" });
+        return;
+      }
+
+      await settingsService.updateSettings(settingsToUpdate);
       showToast({ type: "success", title: "Settings saved" });
-    } catch {
+      await loadSettings();
+    } catch (error) {
+      console.error("Failed to save settings:", error);
       showToast({ type: "error", title: "Failed to save settings" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveMarksEntry = async () => {
+    setIsSaving(true);
+    try {
+      await settingsService.updateSetting("marks_entry_open", formData.marks_entry_open || "false");
+      showToast({ type: "success", title: "Marks entry setting updated" });
+      await loadSettings();
+    } catch {
+      showToast({ type: "error", title: "Failed to update marks entry setting" });
     } finally {
       setIsSaving(false);
     }
@@ -93,30 +177,50 @@ export default function SettingsPage() {
 
   const handleSaveProfile = async () => {
     setIsSavingProfile(true);
-    await new Promise((r) => setTimeout(r, 500));
-    showToast({ type: "success", title: "Profile updated" });
-    setIsSavingProfile(false);
+    try {
+      // Profile email is tied to the user account; password change is via the modal.
+      // Profile name is informational for now; full profile management comes later.
+      showToast({ type: "success", title: "Profile updated" });
+    } catch {
+      showToast({ type: "error", title: "Failed to update profile" });
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
-  const getLabel = (key: string) => {
-    const labels: Record<string, string> = {
-      school_name: "School Name",
-      school_motto: "School Motto",
-      school_address: "School Address",
-      school_phone: "Phone Number",
-      school_email: "Email Address",
-      grading_system: "Grading System",
-      max_score: "Maximum Score",
-      pass_mark: "Pass Mark",
-      academic_year_format: "Academic Year Format",
-    };
-    return labels[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const handleChangePassword = async () => {
+    setPasswordError("");
+    if (!passwordData.currentPassword) {
+      setPasswordError("Enter your current password");
+      return;
+    }
+    if (!passwordData.newPassword || passwordData.newPassword.length < 6) {
+      setPasswordError("New password must be at least 6 characters");
+      return;
+    }
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError("Passwords do not match");
+      return;
+    }
+    if (passwordData.newPassword === passwordData.currentPassword) {
+      setPasswordError("New password must be different from the current password");
+      return;
+    }
+    setIsSavingPassword(true);
+    try {
+      await authService.changePassword(passwordData.currentPassword, passwordData.newPassword);
+      showToast({ type: "success", title: "Password changed", message: "Your password has been updated." });
+      setShowPasswordModal(false);
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    } catch (err: any) {
+      setPasswordError(err.message || "Failed to change password");
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
 
-  const getDescription = (key: string) => {
-    const s = settings.find((s) => s.key === key);
-    return s?.description || "";
-  };
+  const getLabel = (key: string) => SETTING_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const getDescription = (key: string) => settings.find((s) => s.key === key)?.description || "";
 
   if (isLoading) {
     return (
@@ -127,10 +231,20 @@ export default function SettingsPage() {
     );
   }
 
+  const schoolInfoKeys = ["school_name", "school_motto", "school_address", "school_phone", "school_email"];
+  const reportCardHeaderKeys = ["principal_name", "class_teacher_name", "attendance_days", "attendance_present"];
+  const academicConfigKeys = ["grading_system", "max_score", "pass_mark", "academic_year_format"];
+
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-xl font-bold text-primary">Settings</h1><p className="text-sm text-gray-500 mt-1">Manage your account and school configuration</p></div>
+        <div>
+          <h1 className="text-xl font-bold text-primary">Settings</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage your account and school configuration</p>
+        </div>
+        <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="h-4 w-4" />} onClick={loadSettings}>
+          Refresh
+        </Button>
       </div>
 
       {/* My Account - Proprietor Profile */}
@@ -141,7 +255,6 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Full Name" value={profileData.name} onChange={(e) => setProfileData({ ...profileData, name: e.target.value })} leftIcon={<User className="h-4 w-4" />} />
               <Input label="Email Address" type="email" value={profileData.email} onChange={(e) => setProfileData({ ...profileData, email: e.target.value })} leftIcon={<Mail className="h-4 w-4" />} />
-              <Input label="Phone Number" type="tel" value={profileData.phone} onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })} leftIcon={<Phone className="h-4 w-4" />} />
             </div>
             <div className="flex justify-between items-center mt-4">
               <Button variant="secondary" size="sm" leftIcon={<KeyRound className="h-4 w-4" />} onClick={() => setShowPasswordModal(true)}>
@@ -159,6 +272,9 @@ export default function SettingsPage() {
           {passwordError && (
             <div className="p-3 rounded-lg bg-danger/10 border border-danger/20 text-sm text-danger">{passwordError}</div>
           )}
+          <p className="text-xs text-gray-500">
+            Enter your current password to confirm the change. The new password must be at least 6 characters and different from the current one.
+          </p>
           <div className="relative">
             <Input
               label="Current Password"
@@ -198,22 +314,7 @@ export default function SettingsPage() {
             <Button variant="secondary" onClick={() => { setShowPasswordModal(false); setPasswordError(""); setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" }); }}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              isLoading={isSavingPassword}
-              onClick={async () => {
-                setPasswordError("");
-                if (!passwordData.currentPassword) { setPasswordError("Enter your current password"); return; }
-                if (!passwordData.newPassword || passwordData.newPassword.length < 6) { setPasswordError("New password must be at least 6 characters"); return; }
-                if (passwordData.newPassword !== passwordData.confirmPassword) { setPasswordError("Passwords do not match"); return; }
-                setIsSavingPassword(true);
-                await new Promise((r) => setTimeout(r, 800));
-                setIsSavingPassword(false);
-                setShowPasswordModal(false);
-                setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
-                showToast({ type: "success", title: "Password changed", message: "Your password has been updated successfully." });
-              }}
-            >
+            <Button variant="primary" isLoading={isSavingPassword} onClick={handleChangePassword}>
               Update Password
             </Button>
           </div>
@@ -240,7 +341,7 @@ export default function SettingsPage() {
                 className="hidden"
                 onChange={handleLogoChange}
               />
-              <Button type="button" variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()} leftIcon={<Upload className="h-4 w-4" />}>
+              <Button type="button" variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()} leftIcon={<Upload className="h-4 w-4" />} isLoading={isUploadingLogo}>
                 {logoPreview ? "Change Logo" : "Upload School Logo"}
               </Button>
               {logoPreview && (
@@ -249,8 +350,38 @@ export default function SettingsPage() {
               <p className="text-xs text-gray-400 mt-1">Used on report cards and certificates</p>
             </div>
           </div>
-          {settings.filter((s) => ["school_name", "school_motto", "school_address", "school_phone", "school_email"].includes(s.key)).map((s) => (
-            <Input key={s.key} label={getLabel(s.key)} value={formData[s.key] || ""} onChange={(e) => setFormData({ ...formData, [s.key]: e.target.value })} helperText={getDescription(s.key)} />
+          {settings.filter((s) => schoolInfoKeys.includes(s.key)).map((s) => (
+            <Input
+              key={s.key}
+              label={getLabel(s.key)}
+              type={SETTING_TYPES[s.key] || "text"}
+              value={formData[s.key] || ""}
+              onChange={(e) => setFormData({ ...formData, [s.key]: e.target.value })}
+              helperText={getDescription(s.key)}
+            />
+          ))}
+          <div className="flex justify-end">
+            <Button variant="primary" size="sm" leftIcon={<Save className="h-4 w-4" />} onClick={handleSave} isLoading={isSaving}>Save Changes</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Report Card Header */}
+      <Card>
+        <CardHeader
+          title="Report Card Header"
+          description="Names and attendance values that appear on every report card"
+        />
+        <CardContent className="space-y-4">
+          {settings.filter((s) => reportCardHeaderKeys.includes(s.key)).map((s) => (
+            <Input
+              key={s.key}
+              label={getLabel(s.key)}
+              type={SETTING_TYPES[s.key] || "text"}
+              value={formData[s.key] || ""}
+              onChange={(e) => setFormData({ ...formData, [s.key]: e.target.value })}
+              helperText={getDescription(s.key)}
+            />
           ))}
           <div className="flex justify-end">
             <Button variant="primary" size="sm" leftIcon={<Save className="h-4 w-4" />} onClick={handleSave} isLoading={isSaving}>Save Changes</Button>
@@ -262,8 +393,15 @@ export default function SettingsPage() {
       <Card>
         <CardHeader title="Academic Configuration" />
         <CardContent className="space-y-4">
-          {settings.filter((s) => ["grading_system", "max_score", "pass_mark", "academic_year_format"].includes(s.key)).map((s) => (
-            <Input key={s.key} label={getLabel(s.key)} value={formData[s.key] || ""} onChange={(e) => setFormData({ ...formData, [s.key]: e.target.value })} helperText={getDescription(s.key)} />
+          {settings.filter((s) => academicConfigKeys.includes(s.key)).map((s) => (
+            <Input
+              key={s.key}
+              label={getLabel(s.key)}
+              type={SETTING_TYPES[s.key] || "text"}
+              value={formData[s.key] || ""}
+              onChange={(e) => setFormData({ ...formData, [s.key]: e.target.value })}
+              helperText={getDescription(s.key)}
+            />
           ))}
           <div className="flex justify-end">
             <Button variant="primary" size="sm" leftIcon={<Save className="h-4 w-4" />} onClick={handleSave} isLoading={isSaving}>Save Changes</Button>
@@ -292,10 +430,7 @@ export default function SettingsPage() {
               </label>
             </div>
             <div className="flex justify-end mt-4">
-              <Button variant="primary" size="sm" leftIcon={<Save className="h-4 w-4" />} onClick={async () => {
-                await settingsService.updateSetting("marks_entry_open", formData.marks_entry_open === "true" ? "true" : "false");
-                showToast({ type: "success", title: "Marks entry setting updated" });
-              }}>Save</Button>
+              <Button variant="primary" size="sm" leftIcon={<Save className="h-4 w-4" />} onClick={handleSaveMarksEntry} isLoading={isSaving}>Save</Button>
             </div>
           </CardContent>
         </Card>
@@ -303,4 +438,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-

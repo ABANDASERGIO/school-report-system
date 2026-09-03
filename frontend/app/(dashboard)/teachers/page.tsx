@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { showToast } from "@/components/ui/Toast";
 import type { Teacher } from "@/types";
-import { Plus, Users, Phone, Mail, BookOpen, ChevronRight, UserCheck, UserX, MoreVertical } from "lucide-react";
+import { Plus, Users, Phone, Mail, ChevronRight, UserCheck, UserX, MoreVertical, Trash2 } from "lucide-react";
 
 export default function TeachersPage() {
   const router = useRouter();
@@ -20,6 +20,7 @@ export default function TeachersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [suspendTarget, setSuspendTarget] = useState<Teacher | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Teacher | null>(null);
 
   useEffect(() => { loadTeachers(); }, []);
 
@@ -53,9 +54,22 @@ export default function TeachersPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await teacherService.deleteTeacher(deleteTarget.id);
+      showToast({ type: "success", title: "Teacher deleted", message: `${deleteTarget.firstName} ${deleteTarget.lastName} has been suspended.` });
+      loadTeachers();
+    } catch {
+      showToast({ type: "error", title: "Delete failed" });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
   const filteredTeachers = search
     ? teachers.filter((t) =>
-        `${t.firstName} ${t.lastName} ${t.email} ${t.specialization}`.toLowerCase().includes(search.toLowerCase())
+        `${t.firstName} ${t.lastName} ${t.email} ${t.address}`.toLowerCase().includes(search.toLowerCase())
       )
     : teachers;
 
@@ -87,16 +101,20 @@ export default function TeachersPage() {
             <Card key={teacher.id} hover onClick={() => router.push(`/teachers/${teacher.id}`)}>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
-                  <span className="text-accent font-bold text-lg">
-                    {teacher.firstName[0]}{teacher.lastName[0]}
-                  </span>
+                  {teacher.photoUrl ? (
+                    <img src={teacher.photoUrl} alt="" className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    <span className="text-accent font-bold text-lg">
+                      {teacher.firstName[0]}{teacher.lastName[0]}
+                    </span>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-primary truncate">{teacher.firstName} {teacher.lastName}</p>
                     <Badge variant={teacher.isActive ? "success" : "danger"} size="sm">{teacher.isActive ? "Active" : "Suspended"}</Badge>
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">{teacher.specialization}</p>
+                  {teacher.address && <p className="text-xs text-gray-500 mt-0.5">{teacher.address}</p>}
                   <div className="flex items-center gap-3 mt-1">
                     <span className="text-xs text-gray-400 flex items-center gap-1"><Mail className="h-3 w-3" />{teacher.email}</span>
                     {teacher.phone && <span className="text-xs text-gray-400 flex items-center gap-1"><Phone className="h-3 w-3" />{teacher.phone}</span>}
@@ -105,10 +123,17 @@ export default function TeachersPage() {
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={(e) => { e.stopPropagation(); setSuspendTarget(teacher); }}
-                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-danger"
+                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-warning"
                     title={teacher.isActive ? "Suspend" : "Activate"}
                   >
                     {teacher.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(teacher); }}
+                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-danger"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </button>
                   <ChevronRight className="h-4 w-4 text-gray-300" />
                 </div>
@@ -126,6 +151,16 @@ export default function TeachersPage() {
         message={suspendTarget?.isActive ? `Are you sure you want to suspend ${suspendTarget?.firstName} ${suspendTarget?.lastName}? They will not be able to log in.` : `Activate ${suspendTarget?.firstName} ${suspendTarget?.lastName}?`}
         variant={suspendTarget?.isActive ? "danger" : "warning"}
         confirmLabel={suspendTarget?.isActive ? "Suspend" : "Activate"}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Delete Teacher"
+        message={`Are you sure you want to delete ${deleteTarget?.firstName} ${deleteTarget?.lastName}? Their account will be suspended and they will not be able to log in. Historical academic records will be preserved.`}
+        variant="danger"
+        confirmLabel="Delete"
       />
     </div>
   );

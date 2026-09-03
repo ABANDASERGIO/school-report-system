@@ -24,7 +24,6 @@ export interface Teacher {
   email: string;
   phone: string;
   address: string;
-  specialization: string;
   photoUrl?: string;
   photoPublicId?: string;
   isActive: boolean;

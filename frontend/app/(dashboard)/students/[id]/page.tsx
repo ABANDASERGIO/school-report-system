@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { studentService, mockUploadToCloudinary, mockDeleteFromCloudinary } from "@/services/student.service";
+import { studentService, uploadStudentPhoto, deleteStudentPhoto } from "@/services/student.service";
 import { classService } from "@/services/class.service";
 import { enrollmentService } from "@/services/enrollment.service";
 import { sessionService } from "@/services/session.service";
@@ -145,18 +145,18 @@ export default function StudentDetailPage() {
     }
     if (!student) return;
     try {
-      const result = await mockUploadToCloudinary(file, "students", student.id);
+      const result = await uploadStudentPhoto(file, student.id);
       setPhotoPreview(result.url);
       setFormData((prev) => ({ ...prev, photoUrl: result.url, photoPublicId: result.publicId }));
-    } catch {
-      showToast({ type: "error", title: "Failed to upload photo" });
+    } catch (err: any) {
+      showToast({ type: "error", title: "Failed to upload photo", message: err.message });
     }
   };
 
   const clearPhoto = async () => {
     if (formData.photoPublicId) {
       try {
-        await mockDeleteFromCloudinary(formData.photoPublicId);
+        await deleteStudentPhoto(formData.photoPublicId);
       } catch {
         // continue anyway
       }

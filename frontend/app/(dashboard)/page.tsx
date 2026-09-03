@@ -91,7 +91,7 @@ function TeacherDashboard({ data, currentSessionName }: { data: any; currentSess
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="My Classes"
-          value={data.assignments.length}
+          value={data.totalClasses ?? data.assignments.length}
           icon={<BookOpen className="h-5 w-5" />}
         />
         <StatCard
@@ -124,32 +124,31 @@ function TeacherDashboard({ data, currentSessionName }: { data: any; currentSess
           }
         />
         <CardContent>
-          <div className="space-y-3">
-            {data.assignments.map((assignment: any) => (
-              <Link
-                key={assignment.id}
-                href="/results/entry"
-                className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-accent hover:bg-accent/5 transition-all group"
-              >
-                <div>
-                  <p className="text-sm font-medium text-primary group-hover:text-accent transition-colors">
-                    {assignment.subjectId === "sub-001" ? "Mathematics" : 
-                     assignment.subjectId === "sub-002" ? "English" :
-                     assignment.subjectId === "sub-004" ? "Physics" :
-                     assignment.subjectId === "sub-007" ? "History & Geography" : "Subject"}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {assignment.classId === "cls-001" ? "Form 1" : 
-                     assignment.classId === "cls-002" ? "Form 2" :
-                     assignment.classId === "cls-003" ? "Form 3" :
-                     assignment.classId === "cls-005" ? "Form 5 Science" :
-                     assignment.classId === "cls-006" ? "Form 5 Arts" : "Class"}
-                  </p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-accent transition-colors" />
-              </Link>
-            ))}
-          </div>
+          {data.assignments.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">
+              No assignments yet. Ask the proprietor to assign you to a class.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {data.assignments.map((assignment: any) => (
+                <Link
+                  key={assignment.id}
+                  href="/results/entry"
+                  className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-accent hover:bg-accent/5 transition-all group"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-primary group-hover:text-accent transition-colors">
+                      {assignment.subjectName || "Subject"}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {assignment.className || "Class"}
+                    </p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-accent transition-colors" />
+                </Link>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

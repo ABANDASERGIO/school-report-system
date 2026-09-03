@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { teacherService, mockUploadToCloudinary, mockDeleteFromCloudinary } from "@/services/teacher.service";
+import { teacherService, uploadTeacherPhoto, deleteTeacherPhoto } from "@/services/teacher.service";
 import { assignmentService } from "@/services/assignment.service";
 import { classService } from "@/services/class.service";
 import { subjectService } from "@/services/subject.service";
@@ -15,7 +15,7 @@ import { PageSpinner } from "@/components/ui/Spinner";
 import { showToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { Teacher, Assignment, Class as ClassType, Subject } from "@/types";
-import { ArrowLeft, Phone, Mail, BookOpen, UserCheck, UserX, RefreshCw, School, ChevronRight, Upload, X, Save, MapPin } from "lucide-react";
+import { ArrowLeft, Phone, Mail, UserCheck, UserX, RefreshCw, School, ChevronRight, Upload, X, Save, MapPin } from "lucide-react";
 import { useAcademicYear } from "@/providers/AcademicYearProvider";
 
 export default function TeacherDetailPage() {
@@ -32,6 +32,7 @@ export default function TeacherDetailPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [showSuspend, setShowSuspend] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<Partial<Teacher>>({});
@@ -89,13 +90,13 @@ export default function TeacherDetailPage() {
       return;
     }
     try {
-      const result = await mockUploadToCloudinary(file, "teachers", teacher.id);
+      const result = await uploadTeacherPhoto(file, teacher.id);
       setPhotoPreview(result.url);
       await teacherService.updateTeacher(teacher.id, { photoUrl: result.url, photoPublicId: result.publicId });
       showToast({ type: "success", title: "Photo updated" });
       loadData();
-    } catch {
-      showToast({ type: "error", title: "Failed to update photo" });
+    } catch (err: any) {
+      showToast({ type: "error", title: "Failed to update photo", message: err.message });
     }
   };
 
@@ -105,13 +106,13 @@ export default function TeacherDetailPage() {
     setPhotoPreview("");
     try {
       if (publicId) {
-        await mockDeleteFromCloudinary(publicId);
+        await deleteTeacherPhoto(publicId);
       }
       await teacherService.updateTeacher(teacher.id, { photoUrl: "", photoPublicId: "" });
       showToast({ type: "success", title: "Photo removed" });
       loadData();
-    } catch {
-      showToast({ type: "error", title: "Failed to remove photo" });
+    } catch (err: any) {
+      showToast({ type: "error", title: "Failed to remove photo", message: err.message });
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -135,12 +136,25 @@ export default function TeacherDetailPage() {
   const handleResetPassword = async () => {
     if (!teacher) return;
     try {
-      const newPassword = Math.random().toString(36).slice(-8);
-      await teacherService.resetPassword(teacher.id, newPassword);
+      const result = await teacherService.resetPassword(teacher.id);
+      const newPassword = result?.newPassword || Math.random().toString(36).slice(-8);
       showToast({ type: "success", title: "Password reset", message: `New password: ${newPassword}` });
       setShowResetPassword(false);
     } catch {
       showToast({ type: "error", title: "Failed to reset password" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!teacher) return;
+    try {
+      await teacherService.deleteTeacher(teacher.id);
+      showToast({ type: "success", title: "Teacher deleted" });
+      router.push("/teachers");
+    } catch {
+      showToast({ type: "error", title: "Failed to delete teacher" });
+    } finally {
+      setShowDelete(false);
     }
   };
 
@@ -156,7 +170,7 @@ export default function TeacherDetailPage() {
       <Card>
         <CardHeader
           title={`${teacher.firstName} ${teacher.lastName}`}
-          description={teacher.specialization}
+          description={teacher.address || undefined}
           action={
             <div className="flex gap-2">
               {!isEditing ? (
@@ -217,16 +231,12 @@ export default function TeacherDetailPage() {
                   <div className="sm:col-span-2">
                     <Input label="Address" value={formData.address || ""} onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
                   </div>
-                  <div className="sm:col-span-2">
-                    <Input label="Specialization / Subject" value={formData.specialization || ""} onChange={(e) => setFormData({ ...formData, specialization: e.target.value })} />
-                  </div>
                 </>
               ) : (
                 <>
                   <InfoField icon={<Mail className="h-4 w-4" />} label="Email" value={teacher.email} />
                   <InfoField icon={<Phone className="h-4 w-4" />} label="Phone" value={teacher.phone || "-"} />
                   <InfoField icon={<MapPin className="h-4 w-4" />} label="Address" value={teacher.address || "-"} />
-                  <InfoField icon={<BookOpen className="h-4 w-4" />} label="Specialization" value={teacher.specialization} />
                   <InfoField icon={teacher.isActive ? <UserCheck className="h-4 w-4 text-success" /> : <UserX className="h-4 w-4 text-danger" />} label="Status" value={teacher.isActive ? "Active" : "Suspended"} />
                 </>
               )}
@@ -245,6 +255,9 @@ export default function TeacherDetailPage() {
             </Button>
             <Button variant="secondary" size="sm" onClick={() => setShowResetPassword(true)}>
               Reset Password
+            </Button>
+            <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
+              Delete Teacher
             </Button>
           </div>
         </CardContent>
@@ -280,6 +293,16 @@ export default function TeacherDetailPage() {
         message={`Send a password reset link to ${teacher.email}?`}
         variant="warning"
         confirmLabel="Reset"
+      />
+
+      <ConfirmDialog
+        isOpen={showDelete}
+        onClose={() => setShowDelete(false)}
+        onConfirm={handleDelete}
+        title="Delete Teacher"
+        message={`Are you sure you want to delete ${teacher.firstName} ${teacher.lastName}? Their account will be suspended. Historical academic records will be preserved.`}
+        variant="danger"
+        confirmLabel="Delete"
       />
     </div>
   );

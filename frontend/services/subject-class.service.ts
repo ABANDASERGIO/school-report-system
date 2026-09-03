@@ -1,127 +1,62 @@
-import type { Subject, Class as ClassType } from "@/types";
+import { apiClient } from '@/lib/api-client';
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-interface SubjectClass {
-  subjectId: string;
-  classId: string;
-}
-
-const mockSubjectClasses: SubjectClass[] = [
-  { subjectId: "sub-001", classId: "cls-001" },
-  { subjectId: "sub-001", classId: "cls-002" },
-  { subjectId: "sub-001", classId: "cls-003" },
-  { subjectId: "sub-001", classId: "cls-004" },
-  { subjectId: "sub-001", classId: "cls-005" },
-  { subjectId: "sub-001", classId: "cls-006" },
-  { subjectId: "sub-001", classId: "cls-007" },
-  { subjectId: "sub-001", classId: "cls-008" },
-  { subjectId: "sub-001", classId: "cls-009" },
-  { subjectId: "sub-001", classId: "cls-010" },
-  { subjectId: "sub-002", classId: "cls-001" },
-  { subjectId: "sub-002", classId: "cls-002" },
-  { subjectId: "sub-002", classId: "cls-003" },
-  { subjectId: "sub-002", classId: "cls-004" },
-  { subjectId: "sub-002", classId: "cls-005" },
-  { subjectId: "sub-002", classId: "cls-006" },
-  { subjectId: "sub-002", classId: "cls-007" },
-  { subjectId: "sub-002", classId: "cls-008" },
-  { subjectId: "sub-002", classId: "cls-009" },
-  { subjectId: "sub-002", classId: "cls-010" },
-  { subjectId: "sub-003", classId: "cls-001" },
-  { subjectId: "sub-003", classId: "cls-002" },
-  { subjectId: "sub-003", classId: "cls-003" },
-  { subjectId: "sub-003", classId: "cls-004" },
-  { subjectId: "sub-003", classId: "cls-005" },
-  { subjectId: "sub-003", classId: "cls-006" },
-  { subjectId: "sub-003", classId: "cls-007" },
-  { subjectId: "sub-003", classId: "cls-008" },
-  { subjectId: "sub-003", classId: "cls-009" },
-  { subjectId: "sub-003", classId: "cls-010" },
-  { subjectId: "sub-004", classId: "cls-004" },
-  { subjectId: "sub-004", classId: "cls-005" },
-  { subjectId: "sub-004", classId: "cls-007" },
-  { subjectId: "sub-004", classId: "cls-009" },
-  { subjectId: "sub-005", classId: "cls-004" },
-  { subjectId: "sub-005", classId: "cls-005" },
-  { subjectId: "sub-005", classId: "cls-007" },
-  { subjectId: "sub-005", classId: "cls-009" },
-  { subjectId: "sub-006", classId: "cls-004" },
-  { subjectId: "sub-006", classId: "cls-005" },
-  { subjectId: "sub-006", classId: "cls-007" },
-  { subjectId: "sub-006", classId: "cls-009" },
-  { subjectId: "sub-007", classId: "cls-001" },
-  { subjectId: "sub-007", classId: "cls-002" },
-  { subjectId: "sub-007", classId: "cls-003" },
-  { subjectId: "sub-007", classId: "cls-006" },
-  { subjectId: "sub-007", classId: "cls-008" },
-  { subjectId: "sub-007", classId: "cls-010" },
-  { subjectId: "sub-008", classId: "cls-001" },
-  { subjectId: "sub-008", classId: "cls-002" },
-  { subjectId: "sub-008", classId: "cls-003" },
-  { subjectId: "sub-008", classId: "cls-006" },
-  { subjectId: "sub-008", classId: "cls-008" },
-  { subjectId: "sub-008", classId: "cls-010" },
-  { subjectId: "sub-009", classId: "cls-001" },
-  { subjectId: "sub-009", classId: "cls-002" },
-  { subjectId: "sub-009", classId: "cls-003" },
-  { subjectId: "sub-009", classId: "cls-004" },
-  { subjectId: "sub-009", classId: "cls-005" },
-  { subjectId: "sub-009", classId: "cls-006" },
-  { subjectId: "sub-009", classId: "cls-007" },
-  { subjectId: "sub-009", classId: "cls-008" },
-  { subjectId: "sub-009", classId: "cls-009" },
-  { subjectId: "sub-009", classId: "cls-010" },
-  { subjectId: "sub-010", classId: "cls-001" },
-  { subjectId: "sub-010", classId: "cls-002" },
-  { subjectId: "sub-010", classId: "cls-003" },
-  { subjectId: "sub-010", classId: "cls-004" },
-  { subjectId: "sub-010", classId: "cls-005" },
-  { subjectId: "sub-010", classId: "cls-006" },
-  { subjectId: "sub-010", classId: "cls-007" },
-  { subjectId: "sub-010", classId: "cls-008" },
-  { subjectId: "sub-010", classId: "cls-009" },
-  { subjectId: "sub-010", classId: "cls-010" },
-  { subjectId: "sub-011", classId: "cls-001" },
-  { subjectId: "sub-011", classId: "cls-002" },
-  { subjectId: "sub-011", classId: "cls-003" },
-  { subjectId: "sub-011", classId: "cls-006" },
-  { subjectId: "sub-011", classId: "cls-008" },
-  { subjectId: "sub-011", classId: "cls-010" },
-  { subjectId: "sub-012", classId: "cls-006" },
-  { subjectId: "sub-012", classId: "cls-008" },
-  { subjectId: "sub-012", classId: "cls-010" },
-];
-
+/**
+ * Junction service: manages which subjects are assigned to which class.
+ * On the backend this is the SubjectClass table.
+ *
+ * Used by the class detail page to add/remove subjects from a class.
+ */
 export const subjectClassService = {
   async getClassesForSubject(subjectId: string): Promise<string[]> {
-    await delay(300);
-    return mockSubjectClasses
-      .filter((sc) => sc.subjectId === subjectId)
-      .map((sc) => sc.classId);
+    return apiClient.get<string[]>(`/subjects/${subjectId}/classes`);
   },
 
   async getSubjectsForClass(classId: string): Promise<string[]> {
-    await delay(300);
-    return mockSubjectClasses
-      .filter((sc) => sc.classId === classId)
-      .map((sc) => sc.subjectId);
+    return apiClient.get<string[]>(`/subjects/class/${classId}`);
   },
 
-  async setSubjectClasses(subjectId: string, classIds: string[]): Promise<void> {
-    await delay(400);
-    for (let i = mockSubjectClasses.length - 1; i >= 0; i--) {
-      if (mockSubjectClasses[i].subjectId === subjectId) {
-        mockSubjectClasses.splice(i, 1);
+  async setSubjectClasses(classId: string, subjectIds: string[]): Promise<void> {
+    await apiClient.put(`/subjects/class/${classId}`, { subjectIds });
+  },
+
+  async setClassesForSubject(subjectId: string, classIds: string[]): Promise<void> {
+    // Backend currently exposes "replace subjects for class". We mimic the
+    // reverse operation client-side: load the full junction, then PUT each
+    // affected class with the new subject list (excluding/including this subject).
+    const { classService } = await import('./class.service');
+    const { subjectService } = await import('./subject.service');
+    const allClasses = await classService.getClasses();
+    const uniqueClassIds = Array.from(new Set(classIds));
+
+    for (const cls of allClasses) {
+      const currentSubjectIds = await apiClient.get<string[]>(`/subjects/class/${cls.id}`);
+      const hasSubject = currentSubjectIds.includes(subjectId);
+      const shouldHave = uniqueClassIds.includes(cls.id);
+
+      if (hasSubject === shouldHave) continue;
+
+      const next = shouldHave
+        ? Array.from(new Set([...currentSubjectIds, subjectId]))
+        : currentSubjectIds.filter((id) => id !== subjectId);
+
+      await apiClient.put(`/subjects/class/${cls.id}`, { subjectIds: next });
+    }
+
+    // touch the service so it's not tree-shaken in callers that only use it
+    void subjectService;
+  },
+
+  async getAllSubjectClasses(): Promise<Array<{ subjectId: string; classId: string }>> {
+    // Backend doesn't expose a single endpoint for the full junction.
+    // Fetch subjects and resolve via getClassIdsForSubject for each.
+    const subjects = await apiClient.get<Array<{ id: string }>>('/subjects');
+    const out: Array<{ subjectId: string; classId: string }> = [];
+    for (const s of subjects) {
+      const classIds = await apiClient.get<string[]>(`/subjects/${s.id}/classes`);
+      for (const classId of classIds) {
+        out.push({ subjectId: s.id, classId });
       }
     }
-    for (const classId of classIds) {
-      mockSubjectClasses.push({ subjectId, classId });
-    }
-  },
-
-  async getAllSubjectClasses(): Promise<SubjectClass[]> {
-    await delay(300);
-    return [...mockSubjectClasses];
+    return out;
   },
 };

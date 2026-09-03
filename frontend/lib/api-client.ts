@@ -121,6 +121,12 @@ class ApiClient {
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
 
+    // Re-read the latest token from localStorage on every request.
+    // This handles cases where the token was updated in a different module instance.
+    if (typeof window !== 'undefined' && !this.accessToken) {
+      this.accessToken = localStorage.getItem(STORAGE_TOKEN_KEY);
+    }
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...((options.headers as Record<string, string>) || {}),
@@ -212,6 +218,68 @@ class ApiClient {
 
   async delete<T>(endpoint: string): Promise<T> {
     return this.request<T>(endpoint, { method: 'DELETE' });
+  }
+
+  /**
+   * POST a multipart/form-data payload. The fetch body is a FormData instance
+   * so the browser sets the Content-Type with the correct boundary.
+   * The Authorization header is added explicitly because we do not set
+   * Content-Type here (FormData needs to set it itself).
+   */
+  async postFormData<T>(endpoint: string, formData: FormData): Promise<T> {
+    const url = `${API_BASE_URL}${endpoint}`;
+
+    if (typeof window !== 'undefined' && !this.accessToken) {
+      this.accessToken = localStorage.getItem(STORAGE_TOKEN_KEY);
+    }
+
+    const headers: Record<string, string> = {};
+    if (this.accessToken) {
+      headers['Authorization'] = `Bearer ${this.accessToken}`;
+    }
+
+    const doFetch = async () => {
+      const res = await fetch(url, { method: 'POST', body: formData, headers });
+      return res;
+    };
+
+    let response: Response;
+    try {
+      response = await doFetch();
+    } catch (networkError) {
+      console.error(`[API] Network error for ${endpoint}:`, networkError);
+      throw new Error(
+        `Cannot reach the server at ${API_BASE_URL}. Please make sure the backend is running.`
+      );
+    }
+
+    if (response.status === 401 && this.isAuthenticated()) {
+      // Reuse the refresh logic via a normal request that we craft manually.
+      const refreshed = await this.refreshAccessToken();
+      if (refreshed) {
+        headers['Authorization'] = `Bearer ${this.accessToken}`;
+        response = await doFetch();
+      } else {
+        this.clearAuth();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        throw new Error('Session expired. Please log in again.');
+      }
+    }
+
+    let body: ApiResponse<T> | null = null;
+    try {
+      body = (await response.json()) as ApiResponse<T>;
+    } catch {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    if (!body.success) {
+      throw new Error(body.message || `Request failed with status ${response.status}`);
+    }
+
+    return body.data;
   }
 }
 

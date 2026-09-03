@@ -27,12 +27,13 @@ export function validateBody<T>(schema: ZodSchema<T>): RequestHandler {
 
 /**
  * Middleware factory that validates req.query against a Zod schema.
+ * Stores the parsed query on res.locals.query for downstream handlers.
  */
 export function validateQuery<T>(schema: ZodSchema<T>): RequestHandler {
-  return (req: Request, _res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = schema.parse(req.query);
-      req.query = parsed as any;
+      (res.locals as Record<string, unknown>).query = parsed;
       next();
     } catch (error) {
       if (error instanceof ZodError) {
@@ -49,12 +50,13 @@ export function validateQuery<T>(schema: ZodSchema<T>): RequestHandler {
 
 /**
  * Middleware factory that validates req.params against a Zod schema.
+ * Stores the parsed params on res.locals.params for downstream handlers.
  */
 export function validateParams<T>(schema: ZodSchema<T>): RequestHandler {
-  return (req: Request, _res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = schema.parse(req.params);
-      req.params = parsed as any;
+      (res.locals as Record<string, unknown>).params = parsed;
       next();
     } catch (error) {
       if (error instanceof ZodError) {

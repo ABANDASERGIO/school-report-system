@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { authService } from "@/services/auth.service";
 import { useAuth } from "@/providers/AuthProvider";
 import { showToast } from "@/components/ui/Toast";
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { APP_NAME, APP_TAGLINE } from "@/lib/constants";
-import { GraduationCap, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import type { RegisterRequest } from "@/types";
 
 export default function SignupPage() {
@@ -73,7 +74,7 @@ export default function SignupPage() {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
-        response.token
+        response.accessToken
       );
 
       showToast({
@@ -119,8 +120,8 @@ export default function SignupPage() {
       <CardContent>
         {/* Logo & Branding */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <GraduationCap className="h-8 w-8 text-white" />
+          <div className="relative w-16 h-16 mx-auto mb-4 shadow-lg rounded-2xl overflow-hidden bg-white">
+            <Image src="/logo.png" alt={`${APP_NAME} logo`} fill sizes="64px" className="object-contain p-1" priority />
           </div>
           <h1 className="text-2xl font-bold text-primary">Create Proprietor Account</h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -213,14 +214,7 @@ export default function SignupPage() {
         </form>
 
         {/* Security Note */}
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-border">
-          <p className="text-xs font-medium text-gray-500 mb-2">
-            This page creates the first school administrator.
-          </p>
-          <p className="text-xs text-gray-400">
-            Once a proprietor account exists, this form becomes unavailable. Additional staff and teachers can be created after login.
-          </p>
-        </div>
+     
       </CardContent>
     </Card>
   );

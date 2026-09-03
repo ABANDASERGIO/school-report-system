@@ -62,7 +62,7 @@ export default function EditSubjectPage() {
     try {
       await subjectService.updateSubject(params.id as string, formData);
       const { subjectClassService } = await import("@/services/subject-class.service");
-      await subjectClassService.setSubjectClasses(params.id as string, selectedClasses);
+      await subjectClassService.setClassesForSubject(params.id as string, selectedClasses);
       showToast({ type: "success", title: "Subject updated" });
       router.push(`/subjects/${params.id}`);
     } catch {

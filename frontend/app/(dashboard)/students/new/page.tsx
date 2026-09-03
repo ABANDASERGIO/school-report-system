@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { studentService, mockUploadToCloudinary } from "@/services/student.service";
+import { studentService, uploadStudentPhoto } from "@/services/student.service";
+import { uploadService } from "@/services/upload.service";
 import { classService } from "@/services/class.service";
 import { sessionService } from "@/services/session.service";
-import { enrollmentService } from "@/services/enrollment.service";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -65,11 +65,11 @@ export default function NewStudentPage() {
     }
     try {
       const tempId = `temp-${Date.now()}`;
-      const result = await mockUploadToCloudinary(file, "students", tempId);
+      const result = await uploadStudentPhoto(file, tempId);
       setPhotoPreview(result.url);
       setFormData((prev) => ({ ...prev, photoUrl: result.url, photoPublicId: result.publicId }));
-    } catch {
-      showToast({ type: "error", title: "Failed to upload photo" });
+    } catch (err: any) {
+      showToast({ type: "error", title: "Failed to upload photo", message: err.message });
     }
   };
 
@@ -123,13 +123,23 @@ export default function NewStudentPage() {
         parentPhone: formData.parentPhone,
         photoUrl: formData.photoUrl || undefined,
         photoPublicId: formData.photoPublicId || undefined,
+        enrollment: {
+          classId: formData.classId,
+          sessionId: formData.sessionId,
+        },
       });
 
-      await enrollmentService.createEnrollment({
-        studentId: student.id,
-        classId: formData.classId,
-        sessionId: formData.sessionId,
-      });
+      // Re-key the photo from the temp publicId to the student's real id
+      // so the Cloudinary asset lives under the canonical path.
+      if (formData.photoPublicId && formData.photoPublicId.includes("/temp-")) {
+        const rebind = await uploadService.rebindPhoto("student", formData.photoPublicId, student.id);
+        if (rebind) {
+          await studentService.updateStudent(student.id, {
+            photoUrl: rebind.url || formData.photoUrl,
+            photoPublicId: rebind.publicId,
+          });
+        }
+      }
 
       const className = classes.find((c) => c.id === formData.classId)?.name || "";
       showToast({

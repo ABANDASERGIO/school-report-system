@@ -12,6 +12,7 @@ import { reportCardService } from "@/services/report-card.service";
 import { studentService } from "@/services/student.service";
 import { sessionService } from "@/services/session.service";
 import { classService } from "@/services/class.service";
+import { buildSampleReportCard } from "@/lib/sample-report-card";
 import type { ReportCardData, ReportCardType, Student, AcademicSession, Class as ClassType } from "@/types";
 import { FileText, Printer, GraduationCap, Search, User, Users, ChevronRight } from "lucide-react";
 
@@ -308,7 +309,9 @@ export default function ReportsPage() {
           onClick={async () => {
             setIsGenerating(true);
             try {
-              const data = await reportCardService.generateReportCard(reportType);
+              // Local sample — no backend call. Lets the proprietor preview
+              // the layout without selecting a real student.
+              const data = buildSampleReportCard(reportType);
               setReportData(data);
             } catch {
               showToast({ type: "error", title: "Preview Failed" });
@@ -318,9 +321,9 @@ export default function ReportsPage() {
           }}
           isLoading={isGenerating}
         >
-          Preview Demo Report Card
+          Preview Sample Report Card
         </Button>
-        <p className="text-xs text-gray-400 mt-2">Generate a sample report card with mock data to test the layout</p>
+        <p className="text-xs text-gray-400 mt-2">Generate a sample report card with placeholder data to test the layout</p>
       </div>
 
       {/* Info Card */}

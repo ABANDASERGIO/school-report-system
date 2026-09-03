@@ -1,5 +1,6 @@
 // Application-wide constants
 
+export const APP_NAME = 'EduGrade';
 export const API_VERSION = 'v1';
 export const API_PREFIX = `/api/${API_VERSION}`;
 
@@ -26,6 +27,10 @@ export const DEFAULT_SETTINGS = [
   { key: 'school_phone', value: '', description: 'School contact phone number' },
   { key: 'school_email', value: '', description: 'School contact email' },
   { key: 'school_logo', value: '', description: 'School logo URL (Cloudinary)' },
+  { key: 'principal_name', value: '', description: 'Principal name (printed on report cards)' },
+  { key: 'class_teacher_name', value: '', description: 'Default class teacher name (printed on report cards)' },
+  { key: 'attendance_days', value: '90', description: 'Total school days in the academic session' },
+  { key: 'attendance_present', value: '0', description: 'Total days present for the student' },
   { key: 'grading_system', value: 'cameroon_gce', description: 'The grading system used' },
   { key: 'max_score', value: '20', description: 'Maximum score per subject' },
   { key: 'pass_mark', value: '10', description: 'Minimum passing score' },

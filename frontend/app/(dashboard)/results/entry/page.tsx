@@ -135,20 +135,27 @@ export default function ResultEntryPage() {
     setIsSaving(true);
     try {
       const enrollments = await enrollmentService.getActiveEnrollmentsByClass(selectedClass, selectedSession);
-      for (const student of students) {
-        const enrollment = enrollments.find((e) => e.studentId === student.id);
-        if (enrollment) {
-          await resultService.saveDraft({
-            studentId: student.id,
-            subjectId: selectedSubject,
-            sequenceId: selectedSequence,
-            enrollmentId: enrollment.id,
-            score: results.get(student.id) ?? 0,
-            total: maxScore,
-          });
-        }
+      const enrollmentByStudent = new Map(enrollments.map((e) => [e.studentId, e]));
+      const payload = students
+        .filter((s) => enrollmentByStudent.has(s.id))
+        .map((student) => ({
+          studentId: student.id,
+          subjectId: selectedSubject,
+          sequenceId: selectedSequence,
+          enrollmentId: enrollmentByStudent.get(student.id)!.id,
+          score: results.get(student.id) ?? 0,
+          total: maxScore,
+        }));
+      const out = await resultService.bulkSaveDraft(payload);
+      if (out.skipped > 0) {
+        showToast({
+          type: "warning",
+          title: `Saved ${out.saved} draft(s)`,
+          message: `${out.skipped} skipped (locked or no active enrollment)`,
+        });
+      } else {
+        showToast({ type: "success", title: `Saved ${out.saved} draft(s)` });
       }
-      showToast({ type: "success", title: "Draft saved" });
     } catch {
       showToast({ type: "error", title: "Failed to save draft" });
     } finally {
@@ -165,22 +172,30 @@ export default function ResultEntryPage() {
     setIsSaving(true);
     try {
       const enrollments = await enrollmentService.getActiveEnrollmentsByClass(selectedClass, selectedSession);
-      const resultsData = [];
-      for (const student of students) {
-        const enrollment = enrollments.find((e) => e.studentId === student.id);
-        if (enrollment) {
-          resultsData.push({
+      const enrollmentByStudent = new Map(enrollments.map((e) => [e.studentId, e]));
+      const payload = {
+        sequenceId: selectedSequence,
+        results: students
+          .filter((s) => enrollmentByStudent.has(s.id))
+          .map((student) => ({
             studentId: student.id,
             subjectId: selectedSubject,
             sequenceId: selectedSequence,
-            enrollmentId: enrollment.id,
+            enrollmentId: enrollmentByStudent.get(student.id)!.id,
             score: results.get(student.id) ?? 0,
             total: maxScore,
-          });
-        }
+          })),
+      };
+      const out = await resultService.submitResults(payload);
+      if (out.skipped > 0) {
+        showToast({
+          type: "warning",
+          title: `Submitted ${out.submitted} result(s)`,
+          message: `${out.skipped} skipped (locked or no active enrollment)`,
+        });
+      } else {
+        showToast({ type: "success", title: `Submitted ${out.submitted} result(s)` });
       }
-      await resultService.submitResults({ sequenceId: selectedSequence, results: resultsData });
-      showToast({ type: "success", title: "Results submitted!" });
       router.push("/results");
     } catch {
       showToast({ type: "error", title: "Failed to submit" });

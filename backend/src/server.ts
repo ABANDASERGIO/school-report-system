@@ -1,11 +1,16 @@
 import { createApp } from './app';
 import { env } from './config/env';
 import { connectDatabase, disconnectDatabase } from './config/database';
+import { settingsService } from './services/settings.service';
 
 async function startServer(): Promise<void> {
   try {
     // Connect to database
     await connectDatabase();
+
+    // Seed default settings (idempotent)
+    await settingsService.seedDefaults();
+    console.log('✅ Default settings seeded');
 
     // Create Express app
     const app = createApp();

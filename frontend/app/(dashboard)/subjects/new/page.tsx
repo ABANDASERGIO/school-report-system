@@ -37,9 +37,8 @@ export default function CreateSubjectPage() {
     setIsSaving(true);
     try {
       const subject = await subjectService.createSubject(formData);
-      await subjectService.getClassIdsForSubject(subject.id);
       const { subjectClassService } = await import("@/services/subject-class.service");
-      await subjectClassService.setSubjectClasses(subject.id, selectedClasses);
+      await subjectClassService.setClassesForSubject(subject.id, selectedClasses);
       showToast({ type: "success", title: "Subject created" });
       router.push(`/subjects/${subject.id}`);
     } catch {

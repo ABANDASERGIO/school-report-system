@@ -43,17 +43,21 @@ function FirstTimeSetup() {
     setIsSaving(true);
     try {
       const { sessionService } = await import("@/services/session.service");
+      const { useAcademicYear: _useAY } = await import("@/providers/AcademicYearProvider");
       const session = await sessionService.createSession({
         name: name.trim(),
         startDate,
         endDate,
         isCurrent: true,
       });
+      // The first session is automatically set as current on the backend.
+      // Refresh the AcademicYear context to pick up the new session.
       await setActiveSession(session.id);
       showToast({ type: "success", title: "Academic Year created", message: `${session.name} is now active.` });
       router.replace("/");
-    } catch {
-      showToast({ type: "error", title: "Failed to create academic year" });
+    } catch (err: any) {
+      console.error("First-time setup failed:", err);
+      showToast({ type: "error", title: "Failed to create academic year", message: err?.message });
     } finally {
       setIsSaving(false);
     }

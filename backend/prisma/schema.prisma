@@ -376,3 +376,73 @@ model SchoolSetting {
 
   @@index([key])
 }
+
+// ============================================
+// NOTIFICATIONS (Per-user inbox)
+// ============================================
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
+
+// ============================================
+// AUDIT LOG (Per-action history; proprietor-only queries)
+// ============================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  userEmail  String
+  action     String
+  entityType String
+  entityId   String?
+  payload    String? // JSON-stringified diff or context
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+}
+
+// ============================================
+// VERIFICATION CODES (Email OTP, one-time-use)
+// ============================================
+// Used for password reset, email change, and other email-confirmation flows.
+// Codes are 6-digit numeric, expire after 15 minutes, and can only be used once.
+
+enum VerificationPurpose {
+  FORGOT_PASSWORD
+  RESET_PASSWORD
+  EMAIL_CHANGE
+  WELCOME
+}
+
+model VerificationCode {
+  id        String             @id @default(uuid())
+  // Either tied to a known user OR a pending email (e.g. for email change).
+  // userId is optional so codes can be issued before a User is matched.
+  userId    String?
+  email     String
+  code      String
+  purpose   VerificationPurpose
+  // Optional contextual payload (e.g. { newEmail: "..." } for EMAIL_CHANGE).
+  metadata  String?
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime           @default(now())
+
+  @@index([email, purpose])
+  @@index([userId, purpose])
+  @@index([expiresAt])
+}

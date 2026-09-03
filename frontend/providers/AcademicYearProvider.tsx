@@ -38,10 +38,14 @@ export function AcademicYearProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const setActiveSession = async (sessionId: string) => {
-    await sessionService.setCurrentSession(sessionId);
-    const session = sessions.find((s) => s.id === sessionId) || null;
-    setActiveSessionState(session);
-    setSessions((prev) => prev.map((s) => ({ ...s, isCurrent: s.id === sessionId })));
+    try {
+      await sessionService.setCurrentSession(sessionId);
+      // Refresh from server to ensure consistency
+      await loadSessions();
+    } catch (err) {
+      console.error("Failed to set active session", err);
+      throw err;
+    }
   };
 
   const refreshSessions = async () => {

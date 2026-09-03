@@ -26,7 +26,8 @@ export interface LoginResponse {
     lastName?: string;
     role: string;
   };
-  token: string;
+  accessToken: string;
+  refreshToken: string;
 }
 
 export interface RegisterRequest {
@@ -57,7 +58,6 @@ export interface CreateTeacherRequest {
   email: string;
   phone: string;
   address: string;
-  specialization: string;
   password: string;
   photoUrl?: string;
   photoPublicId?: string;
