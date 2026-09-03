@@ -1,0 +1,448 @@
+// Prisma schema for EduGrade School Result Management System
+// Documentation: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  PROPRIETOR
+  TEACHER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  WITHDRAWN
+  TRANSFERRED
+  GRADUATED
+  REPEATER
+}
+
+enum ResultStatus {
+  DRAFT
+  SUBMITTED
+  LOCKED
+}
+
+// ============================================
+// AUTHENTICATION & USERS
+// ============================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      UserRole
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  // Note: onDelete: Restrict prevents accidental user/teacher deletion.
+  // Use isActive = false (soft-delete) instead.
+  teacher Teacher?
+
+  @@index([email])
+  @@index([role])
+}
+
+// ============================================
+// TEACHERS (School-level entity, persists across Academic Years)
+// ============================================
+
+model Teacher {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  firstName      String
+  lastName       String
+  email          String
+  phone          String?
+  address        String?
+  specialization String?
+  photoUrl       String?
+  photoPublicId  String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  // Restrict: Cannot delete a User while a Teacher record references it.
+  // Deactivate via Teacher.isActive = false instead.
+  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  // Restrict: Cannot delete a Teacher while they have Assignments.
+  // Deactivate via Teacher.isActive = false instead.
+  assignments Assignment[]
+
+  @@index([email])
+  @@index([isActive])
+}
+
+// ============================================
+// STUDENTS (Persistent identity, session-specific via Enrollment)
+// ============================================
+
+model Student {
+  id            String   @id @default(uuid())
+  firstName     String
+  lastName      String
+  dateOfBirth   DateTime @db.Date
+  placeOfBirth  String
+  gender        Gender
+  address       String?
+  phone         String?
+  parentName    String?
+  parentPhone   String?
+  studentNumber String   @unique
+  photoUrl      String?
+  photoPublicId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  // Restrict: Cannot delete a Student while they have Enrollments.
+  // Preserve historical academic records; deactivate or archive instead.
+  enrollments Enrollment[]
+  Result      Result[]
+
+  @@index([studentNumber])
+  @@index([lastName, firstName])
+}
+
+// ============================================
+// CLASSES (Reusable school-level entity)
+// ============================================
+
+model Class {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  code        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  // Cascade OK: SubjectClass is a pure junction table.
+  subjectClasses SubjectClass[]
+  // Restrict: Cannot delete a Class with historical Enrollments.
+  enrollments    Enrollment[]
+  // Restrict: Cannot delete a Class with historical Assignments.
+  assignments    Assignment[]
+
+  @@index([name])
+  @@index([code])
+}
+
+// ============================================
+// SUBJECTS (Reusable school-level entity)
+// ============================================
+
+model Subject {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  code        String   @unique
+  description String?
+  coefficient Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  // Cascade OK: SubjectClass is a pure junction table.
+  subjectClasses SubjectClass[]
+  // Restrict: Cannot delete a Subject with historical Results.
+  results        Result[]
+  // Back-relation for Assignment (no onDelete here; controlled by Assignment side)
+  assignments    Assignment[]
+
+  @@index([name])
+  @@index([code])
+}
+
+// ============================================
+// SUBJECT-CLASS MANY-TO-MANY
+// ============================================
+
+model SubjectClass {
+  id        String @id @default(uuid())
+  subjectId String
+  classId   String
+
+  // Relations
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([subjectId, classId])
+  @@index([subjectId])
+  @@index([classId])
+}
+
+// ============================================
+// ACADEMIC SESSIONS (Academic Years - permanent historical record)
+// ============================================
+
+model AcademicSession {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  isCurrent Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  // All Restrict: Academic Sessions are permanent historical records.
+  // Use isActive = false to archive instead of deleting.
+  terms       Term[]
+  sequences   Sequence[]
+  assignments Assignment[]
+  enrollments Enrollment[]
+  results     Result[]
+
+  @@index([name])
+  @@index([isCurrent])
+  @@index([isActive])
+}
+
+// ============================================
+// TERMS
+// ============================================
+
+model Term {
+  id            String   @id @default(uuid())
+  sessionId     String
+  name          String
+  sequenceCount Int      @default(2)
+  startDate     DateTime @db.Date
+  endDate       DateTime @db.Date
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  // Restrict: Cannot delete a session that contains terms.
+  session   AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  // Cascade OK: Sequences belong to a term and have no independent meaning.
+  sequences Sequence[]
+
+  @@index([sessionId])
+}
+
+// ============================================
+// SEQUENCES (Denormalized sessionId for direct constraints/indexes)
+// ============================================
+
+model Sequence {
+  id        String   @id @default(uuid())
+  termId    String
+  sessionId String
+  name      String
+  number    Int
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  // Cascade OK: Sequences belong to a term and have no independent meaning.
+  term    Term            @relation(fields: [termId], references: [id], onDelete: Cascade)
+  // Restrict: Cannot delete a session that contains sequences.
+  session AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  results Result[]
+
+  @@unique([termId, number])
+  @@index([termId])
+  @@index([sessionId])
+  @@index([isActive])
+}
+
+// ============================================
+// ENROLLMENTS (Student-Class-Session, Academic-Year-specific)
+// ============================================
+
+model Enrollment {
+  id             String           @id @default(uuid())
+  studentId      String
+  classId        String
+  sessionId      String
+  status         EnrollmentStatus @default(ACTIVE)
+  enrollmentDate DateTime         @default(now())
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  // Relations
+  // Restrict: Cannot delete a Student while they have Enrollments.
+  student Student         @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  // Restrict: Cannot delete a Class with historical Enrollments.
+  class   Class           @relation(fields: [classId], references: [id], onDelete: Restrict)
+  // Restrict: Cannot delete a Session with historical Enrollments.
+  session AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  results Result[]
+
+  @@unique([studentId, classId, sessionId])
+  @@index([studentId])
+  @@index([classId, sessionId])
+  @@index([sessionId])
+  @@index([status])
+}
+
+// ============================================
+// ASSIGNMENTS (Teacher-Class-Subject-Session, Academic-Year-specific)
+// ============================================
+
+model Assignment {
+  id        String @id @default(uuid())
+  teacherId String
+  classId   String
+  subjectId String
+  sessionId String
+
+  // Relations
+  // Restrict: Cannot delete a Teacher with historical Assignments.
+  teacher Teacher         @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  // Restrict: Cannot delete a Class with historical Assignments.
+  class   Class           @relation(fields: [classId], references: [id], onDelete: Restrict)
+  // Restrict: Cannot delete a Subject with historical Assignments.
+  subject Subject         @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  // Restrict: Cannot delete a Session with historical Assignments.
+  session AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  @@unique([teacherId, classId, subjectId, sessionId])
+  @@index([teacherId, sessionId])
+  @@index([classId, sessionId])
+  @@index([subjectId, sessionId])
+}
+
+// ============================================
+// RESULTS (Marks - Academic-Year-specific via sessionId)
+// ============================================
+
+model Result {
+  id           String       @id @default(uuid())
+  studentId    String
+  subjectId    String
+  sequenceId   String
+  enrollmentId String
+  sessionId    String
+  score        Float?
+  total        Float        @default(20)
+  status       ResultStatus @default(DRAFT)
+  submittedAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relations
+  student    Student         @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  subject    Subject         @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  sequence   Sequence        @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  enrollment Enrollment      @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  // Restrict: Cannot delete a Session with historical Results.
+  session    AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  // Unique constraint now includes sessionId so results across different
+  // academic years can coexist for the same student/subject/sequence.
+  @@unique([studentId, subjectId, sequenceId, sessionId])
+  @@index([studentId])
+  @@index([subjectId, sequenceId])
+  @@index([sequenceId])
+  @@index([status])
+  @@index([enrollmentId])
+  @@index([sessionId])
+}
+
+// ============================================
+// SCHOOL SETTINGS (Persistent across Academic Years)
+// ============================================
+
+model SchoolSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+}
+
+// ============================================
+// NOTIFICATIONS (Per-user inbox)
+// ============================================
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
+
+// ============================================
+// AUDIT LOG (Per-action history; proprietor-only queries)
+// ============================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  userEmail  String
+  action     String
+  entityType String
+  entityId   String?
+  payload    String? // JSON-stringified diff or context
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+}
+
+// ============================================
+// VERIFICATION CODES (Email OTP, one-time-use)
+// ============================================
+// Used for password reset, email change, and other email-confirmation flows.
+// Codes are 6-digit numeric, expire after 15 minutes, and can only be used once.
+
+enum VerificationPurpose {
+  FORGOT_PASSWORD
+  RESET_PASSWORD
+  EMAIL_CHANGE
+  WELCOME
+}
+
+model VerificationCode {
+  id        String             @id @default(uuid())
+  // Either tied to a known user OR a pending email (e.g. for email change).
+  // userId is optional so codes can be issued before a User is matched.
+  userId    String?
+  email     String
+  code      String
+  purpose   VerificationPurpose
+  // Optional contextual payload (e.g. { newEmail: "..." } for EMAIL_CHANGE).
+  metadata  String?
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime           @default(now())
+
+  @@index([email, purpose])
+  @@index([userId, purpose])
+  @@index([expiresAt])
+}
