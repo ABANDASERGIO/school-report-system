@@ -176,8 +176,25 @@ export const resultService = {
    * (matching the unique (studentId, subjectId, sequenceId, sessionId)
    * tuple), updates the score/total/status otherwise. Refuses to
    * transition away from LOCKED.
+   *
+   * If `idempotencyKey` is provided, the call is idempotent: the backend
+   * first checks whether a result with that key already exists. If it does,
+   * the existing row is returned unchanged. This lets the offline frontend
+   * retry POSTs safely without creating duplicates.
    */
-  async upsertResult(input: UpsertResultInput): Promise<ResultResponse> {
+  async upsertResult(input: UpsertResultInput & { idempotencyKey?: string | null }): Promise<ResultResponse> {
+    // Idempotency short-circuit: if the client sent a key and we've already
+    // processed it, return the existing row without touching anything.
+    if (input.idempotencyKey) {
+      const byKey = await prisma.result.findUnique({
+        where: { idempotencyKey: input.idempotencyKey },
+        include: relationInclude,
+      });
+      if (byKey) {
+        return toResultResponse(byKey);
+      }
+    }
+
     // Validate sequence and resolve sessionId
     const sequence = await prisma.sequence.findUnique({ where: { id: input.sequenceId } });
     if (!sequence) {
@@ -252,6 +269,7 @@ export const resultService = {
         total: input.total,
         status,
         submittedAt,
+        idempotencyKey: input.idempotencyKey ?? undefined,
       },
       update: {
         enrollmentId,
@@ -348,6 +366,7 @@ export const resultService = {
           score: r.score,
           total: r.total,
           status: 'SUBMITTED',
+          idempotencyKey: r.idempotencyKey ?? undefined,
         });
         submitted++;
       } catch (error) {

@@ -341,6 +341,9 @@ model Result {
   total        Float        @default(20)
   status       ResultStatus @default(DRAFT)
   submittedAt  DateTime?
+  // Client-generated dedupe key (UUID v4). When the offline frontend
+  // retries a POST, the backend uses this to short-circuit duplicates.
+  idempotencyKey String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -355,6 +358,8 @@ model Result {
   // Unique constraint now includes sessionId so results across different
   // academic years can coexist for the same student/subject/sequence.
   @@unique([studentId, subjectId, sequenceId, sessionId])
+  // Idempotency: a given client op must produce at most one server row.
+  @@unique([idempotencyKey])
   @@index([studentId])
   @@index([subjectId, sequenceId])
   @@index([sequenceId])

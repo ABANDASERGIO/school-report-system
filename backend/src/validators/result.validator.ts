@@ -14,6 +14,9 @@ const singleMarkSchema = z.object({
   score: z.number().min(0).max(1000).nullable(),
   total: z.number().min(0).max(1000).default(20),
   status: resultStatusSchema.optional(),
+  // Client-generated idempotency key (UUID v4). Used by the offline
+  // frontend to deduplicate retried POSTs.
+  idempotencyKey: z.string().uuid().optional().nullable(),
 });
 
 export const upsertResultSchema = singleMarkSchema;
@@ -39,6 +42,7 @@ export const bulkSubmitSchema = z.object({
         enrollmentId: uuid.optional(),
         score: z.number().min(0).max(1000).nullable(),
         total: z.number().min(0).max(1000).default(20),
+        idempotencyKey: z.string().uuid().optional().nullable(),
       })
     )
     .min(1)
