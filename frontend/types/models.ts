@@ -129,6 +129,7 @@ export interface Result {
   subjectId: string;
   sequenceId: string;
   enrollmentId: string;
+  sessionId: string;
   score: number | null;
   total: number;
   status: ResultStatus;

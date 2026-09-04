@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/providers/AuthProvider";
+import { OnlineSyncProvider } from "@/providers/OnlineSyncProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -39,7 +40,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background text-primary font-sans">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <OnlineSyncProvider>
+            {children}
+          </OnlineSyncProvider>
+        </AuthProvider>
       </body>
     </html>
   );

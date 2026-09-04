@@ -143,6 +143,7 @@ export default function ResultEntryPage() {
           subjectId: selectedSubject,
           sequenceId: selectedSequence,
           enrollmentId: enrollmentByStudent.get(student.id)!.id,
+          sessionId: selectedSession,
           score: results.get(student.id) ?? 0,
           total: maxScore,
         }));
@@ -182,6 +183,7 @@ export default function ResultEntryPage() {
             subjectId: selectedSubject,
             sequenceId: selectedSequence,
             enrollmentId: enrollmentByStudent.get(student.id)!.id,
+            sessionId: selectedSession,
             score: results.get(student.id) ?? 0,
             total: maxScore,
           })),

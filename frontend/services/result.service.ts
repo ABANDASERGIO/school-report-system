@@ -1,6 +1,10 @@
 import type { Result, MarkEntryRequest, SubmitResultsRequest } from '@/types';
 import { ResultStatus } from '@/types/enums';
 import { apiClient } from '@/lib/api-client';
+import { isOnline } from '@/lib/sync/connectivity';
+import { enqueueAndDrain, drainNow } from '@/lib/sync/sync-engine';
+import { putResult, getResultByCell, getResultsBySequence, getDirtyResults } from '@/lib/db/repos/results.repo';
+import type { DBResult } from '@/lib/db/schema';
 
 export type ResultWithRelations = Result & {
   student?: { id: string; firstName: string; lastName: string; studentNumber: string };
@@ -16,134 +20,365 @@ export interface SequenceStatusCounts {
   locked: number;
 }
 
-function buildQuery(filters: {
-  studentId?: string;
-  subjectId?: string;
-  sequenceId?: string;
-  sessionId?: string;
-  classId?: string;
-  status?: ResultStatus;
-}): string {
-  const params = new URLSearchParams();
-  if (filters.studentId) params.set('studentId', filters.studentId);
-  if (filters.subjectId) params.set('subjectId', filters.subjectId);
-  if (filters.sequenceId) params.set('sequenceId', filters.sequenceId);
-  if (filters.sessionId) params.set('sessionId', filters.sessionId);
-  if (filters.classId) params.set('classId', filters.classId);
-  if (filters.status) params.set('status', filters.status);
-  const q = params.toString();
-  return q ? `?${q}` : '';
-}
-
 export const resultService = {
   /**
-   * List results. Optional filters. Used by the Results page (filtered by
-   * sequence) and the dashboard (filtered by teacher/class).
+   * List results. Optional filters.
+   * If online: fetch from API and refresh IDB.
+   * If offline: read from IDB.
    */
   async getResults(sequenceId?: string): Promise<Result[]> {
-    return apiClient.get<ResultWithRelations[]>(
-      `/results${buildQuery({ sequenceId })}`
-    );
+    if (isOnline()) {
+      try {
+        const data = await apiClient.get<ResultWithRelations[]>(
+          `/results${sequenceId ? `?sequenceId=${encodeURIComponent(sequenceId)}` : ''}`
+        );
+        // refresh IDB in background
+        for (const r of data) {
+          await putResult(toDbResult(r));
+        }
+        return data;
+      } catch {
+        // fallback to IDB on network error
+      }
+    }
+    const all = await getResultsBySequence(sequenceId || '');
+    return all.map(toApiResult);
   },
 
   async getResultsByStudent(studentId: string): Promise<Result[]> {
-    return apiClient.get<ResultWithRelations[]>(
-      `/results${buildQuery({ studentId })}`
-    );
+    if (isOnline()) {
+      try {
+        const data = await apiClient.get<ResultWithRelations[]>(`/results?studentId=${studentId}`);
+        for (const r of data) await putResult(toDbResult(r));
+        return data;
+      } catch {
+        // fallback
+      }
+    }
+    const all = await (await import('@/lib/db/repos/results.repo')).getAllResults();
+    return all.filter((r) => r.studentId === studentId).map(toApiResult);
   },
 
   async getResultsBySubjectAndSequence(
     subjectId: string,
     sequenceId: string
   ): Promise<Result[]> {
-    return apiClient.get<ResultWithRelations[]>(
-      `/results${buildQuery({ subjectId, sequenceId })}`
-    );
+    if (isOnline()) {
+      try {
+        const data = await apiClient.get<ResultWithRelations[]>(
+          `/results?subjectId=${subjectId}&sequenceId=${sequenceId}`
+        );
+        for (const r of data) await putResult(toDbResult(r));
+        return data;
+      } catch {
+        // fallback
+      }
+    }
+    const all = await getResultsBySequence(sequenceId);
+    return all.filter((r) => r.subjectId === subjectId).map(toApiResult);
   },
 
   async getResultsByClassAndSession(
     classId: string,
     sessionId: string
   ): Promise<Result[]> {
-    return apiClient.get<ResultWithRelations[]>(
-      `/results${buildQuery({ classId, sessionId })}`
-    );
+    if (isOnline()) {
+      try {
+        const data = await apiClient.get<ResultWithRelations[]>(
+          `/results?classId=${classId}&sessionId=${sessionId}`
+        );
+        for (const r of data) await putResult(toDbResult(r));
+        return data;
+      } catch {
+        // fallback
+      }
+    }
+    const all = await (await import('@/lib/db/repos/results.repo')).getAllResults();
+    return all.filter((r) => (r as any).sessionId === sessionId).map(toApiResult);
   },
 
   async getResultById(id: string): Promise<Result | undefined> {
-    try {
-      return await apiClient.get<ResultWithRelations>(`/results/${id}`);
-    } catch {
-      return undefined;
+    if (isOnline()) {
+      try {
+        const data = await apiClient.get<ResultWithRelations>(`/results/${id}`);
+        await putResult(toDbResult(data));
+        return data;
+      } catch {
+        // fallback
+      }
     }
+    const r = await (await import('@/lib/db/indexeddb')).idbGet<DBResult>('results', id);
+    return r ? toApiResult(r) : undefined;
   },
 
   /**
-   * Save a single mark as a DRAFT. Uses the upsert endpoint; creates
-   * the row if it doesn't exist, updates the score otherwise.
+   * Save a single mark as a DRAFT.
+   * If online: POST to backend + write-through to IDB.
+   * If offline: write to IDB + enqueue for later sync.
    */
-  async saveDraft(data: MarkEntryRequest): Promise<Result> {
-    return apiClient.post<Result>('/results', { ...data, status: ResultStatus.DRAFT });
+  async saveDraft(data: MarkEntryRequest & { idempotencyKey?: string | null }): Promise<Result> {
+    if (isOnline()) {
+      try {
+        const r = await apiClient.post<Result>('/results', { ...data, status: ResultStatus.DRAFT });
+        await putResult(toDbResult(r));
+        return r;
+      } catch (err) {
+        // network failed — fall through to offline path
+      }
+    }
+
+    const clientOpId = data.idempotencyKey || crypto.randomUUID();
+    const existing = await getResultByCell(data.studentId, data.subjectId, data.sequenceId, data.sessionId);
+    const dbRow: DBResult = {
+      id: existing?.id || crypto.randomUUID(),
+      studentId: data.studentId,
+      subjectId: data.subjectId,
+      sequenceId: data.sequenceId,
+      enrollmentId: data.enrollmentId,
+      sessionId: data.sessionId,
+      score: data.score ?? null,
+      total: data.total,
+      status: ResultStatus.DRAFT,
+      submittedAt: null,
+      dirty: 1,
+      pendingOpId: clientOpId,
+      syncedAt: new Date().toISOString(),
+      studentName: existing?.studentName,
+      studentNumber: existing?.studentNumber,
+    };
+    await putResult(dbRow);
+    await enqueueAndDrain({
+      op: 'saveDraft',
+      endpoint: '/results',
+      method: 'POST',
+      body: { ...data, status: ResultStatus.DRAFT, idempotencyKey: clientOpId },
+      idempotencyKey: clientOpId,
+    });
+    return toApiResult(dbRow);
   },
 
   /**
-   * Submit a whole sequence of marks at once. Backend upserts each as
-   * SUBMITTED.
+   * Submit a whole sequence of marks at once.
+   * If online: POST to backend.
+   * If offline: write each as SUBMITTED in IDB + enqueue N individual
+   * sync items (we can't atomically retry a bulk request safely).
    */
-  async submitResults(data: SubmitResultsRequest): Promise<{ submitted: number; skipped: number }> {
-    return apiClient.post<{ submitted: number; skipped: number }>('/results/bulk-submit', data);
+  async submitResults(data: SubmitResultsRequest & { results?: (MarkEntryRequest & { idempotencyKey?: string | null })[] }): Promise<{ submitted: number; skipped: number }> {
+    if (isOnline()) {
+      try {
+        const r = await apiClient.post<{ submitted: number; skipped: number }>('/results/bulk-submit', {
+          sequenceId: data.sequenceId,
+          results: data.results.map((r) => ({
+            studentId: r.studentId,
+            subjectId: r.subjectId,
+            sequenceId: r.sequenceId,
+            enrollmentId: r.enrollmentId,
+            score: r.score,
+            total: r.total,
+          })),
+        });
+        // refresh IDB
+        const refreshed = await apiClient.get<ResultWithRelations[]>(
+          `/results?sequenceId=${data.sequenceId}`
+        );
+        for (const row of refreshed) await putResult(toDbResult(row));
+        return r;
+      } catch {
+        // fall through to offline path
+      }
+    }
+
+    let submitted = 0;
+    for (const r of (data.results || [])) {
+      const clientOpId = r.idempotencyKey || crypto.randomUUID();
+      const existing = await getResultByCell(r.studentId, r.subjectId, r.sequenceId, r.sessionId);
+      const dbRow: DBResult = {
+        id: existing?.id || crypto.randomUUID(),
+        studentId: r.studentId,
+        subjectId: r.subjectId,
+        sequenceId: r.sequenceId,
+        enrollmentId: r.enrollmentId,
+        sessionId: r.sessionId,
+        score: r.score ?? null,
+        total: r.total,
+        status: ResultStatus.SUBMITTED,
+        submittedAt: new Date().toISOString(),
+        dirty: 1,
+        pendingOpId: clientOpId,
+        syncedAt: new Date().toISOString(),
+        studentName: existing?.studentName,
+        studentNumber: existing?.studentNumber,
+      };
+      await putResult(dbRow);
+      await enqueueAndDrain({
+        op: 'submitResult',
+        endpoint: '/results',
+        method: 'POST',
+        body: {
+          studentId: r.studentId,
+          subjectId: r.subjectId,
+          sequenceId: r.sequenceId,
+          enrollmentId: r.enrollmentId,
+          score: r.score,
+          total: r.total,
+          status: ResultStatus.SUBMITTED,
+          idempotencyKey: clientOpId,
+        },
+        idempotencyKey: clientOpId,
+      });
+      submitted++;
+    }
+    return { submitted, skipped: 0 };
   },
 
   /**
    * Bulk save drafts. Mirrors `submitResults` but with status=DRAFT.
    */
   async bulkSaveDraft(
-    results: MarkEntryRequest[]
+    results: (MarkEntryRequest & { idempotencyKey?: string | null })[]
   ): Promise<{ saved: number; skipped: number }> {
-    return apiClient.post<{ saved: number; skipped: number }>('/results/bulk-draft', {
-      results,
-    });
+    if (isOnline()) {
+      try {
+        const r = await apiClient.post<{ saved: number; skipped: number }>('/results/bulk-draft', {
+          results: results.map((r) => ({
+            studentId: r.studentId,
+            subjectId: r.subjectId,
+            sequenceId: r.sequenceId,
+            enrollmentId: r.enrollmentId,
+            score: r.score,
+            total: r.total,
+            idempotencyKey: r.idempotencyKey,
+          })),
+        });
+        return r;
+      } catch {
+        // fall through
+      }
+    }
+
+    let saved = 0;
+    for (const r of results) {
+      const clientOpId = r.idempotencyKey || crypto.randomUUID();
+      const existing = await getResultByCell(r.studentId, r.subjectId, r.sequenceId, r.sessionId);
+      const dbRow: DBResult = {
+        id: existing?.id || crypto.randomUUID(),
+        studentId: r.studentId,
+        subjectId: r.subjectId,
+        sequenceId: r.sequenceId,
+        enrollmentId: r.enrollmentId,
+        sessionId: r.sessionId,
+        score: r.score ?? null,
+        total: r.total,
+        status: ResultStatus.DRAFT,
+        submittedAt: null,
+        dirty: 1,
+        pendingOpId: clientOpId,
+        syncedAt: new Date().toISOString(),
+        studentName: existing?.studentName,
+        studentNumber: existing?.studentNumber,
+      };
+      await putResult(dbRow);
+      await enqueueAndDrain({
+        op: 'saveDraft',
+        endpoint: '/results',
+        method: 'POST',
+        body: { ...r, status: ResultStatus.DRAFT, idempotencyKey: clientOpId },
+        idempotencyKey: clientOpId,
+      });
+      saved++;
+    }
+    return { saved, skipped: 0 };
   },
 
-  /**
-   * Lock all submitted results for a sequence (proprietor only).
-   */
   async lockResults(sequenceId: string): Promise<{ locked: number }> {
+    if (!isOnline()) throw new Error('Cannot lock results while offline');
     return apiClient.post<{ locked: number }>(`/results/sequence/${sequenceId}/lock`);
   },
 
-  /**
-   * Unlock a sequence (proprietor only).
-   */
   async unlockResults(sequenceId: string): Promise<{ unlocked: number }> {
+    if (!isOnline()) throw new Error('Cannot unlock results while offline');
     return apiClient.post<{ unlocked: number }>(`/results/sequence/${sequenceId}/unlock`);
   },
 
-  /**
-   * Count of DRAFT results across the system (or in a session).
-   */
   async getPendingResultsCount(sessionId?: string): Promise<number> {
-    const counts = await apiClient.get<{ draft: number; submitted: number; locked: number }>(
-      `/results/status-counts${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''}`
-    );
-    return counts.draft;
+    if (isOnline()) {
+      try {
+        const data = await apiClient.get<{ draft: number; submitted: number; locked: number }>(
+          `/results/status-counts${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''}`
+        );
+        return data.draft;
+      } catch {
+        // fallback
+      }
+    }
+    const all = await (await import('@/lib/db/repos/results.repo')).getAllResults();
+    return all.filter((r) => r.status === 'DRAFT').length;
   },
 
-  /**
-   * Count of SUBMITTED results across the system (or in a session).
-   */
   async getSubmittedResultsCount(sessionId?: string): Promise<number> {
-    const counts = await apiClient.get<{ draft: number; submitted: number; locked: number }>(
-      `/results/status-counts${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''}`
-    );
-    return counts.submitted;
+    if (isOnline()) {
+      try {
+        const data = await apiClient.get<{ draft: number; submitted: number; locked: number }>(
+          `/results/status-counts${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''}`
+        );
+        return data.submitted;
+      } catch {
+        // fallback
+      }
+    }
+    const all = await (await import('@/lib/db/repos/results.repo')).getAllResults();
+    return all.filter((r) => r.status === 'SUBMITTED').length;
   },
 
-  /**
-   * Per-sequence status breakdown. Used by the Results page to show
-   * "submitted/locked" progress for the selected sequence.
-   */
   async getSequenceResultsStatus(sequenceId: string): Promise<SequenceStatusCounts> {
-    return apiClient.get<SequenceStatusCounts>(`/results/sequence/${sequenceId}/status`);
+    if (isOnline()) {
+      try {
+        return apiClient.get<SequenceStatusCounts>(`/results/sequence/${sequenceId}/status`);
+      } catch {
+        // fallback
+      }
+    }
+    const all = await getResultsBySequence(sequenceId);
+    return {
+      total: all.length,
+      drafted: all.filter((r) => r.status === 'DRAFT').length,
+      submitted: all.filter((r) => r.status === 'SUBMITTED').length,
+      locked: all.filter((r) => r.status === 'LOCKED').length,
+    };
   },
 };
+
+function toDbResult(r: Result): DBResult {
+  return {
+    id: r.id,
+    studentId: r.studentId,
+    subjectId: r.subjectId,
+    sequenceId: r.sequenceId,
+    enrollmentId: r.enrollmentId,
+    sessionId: r.sessionId,
+    score: r.score ?? null,
+    total: r.total,
+    status: r.status,
+    submittedAt: r.submittedAt ?? null,
+    dirty: 0,
+    pendingOpId: undefined,
+    syncedAt: new Date().toISOString(),
+  };
+}
+
+function toApiResult(r: DBResult): Result {
+  return {
+    id: r.id,
+    studentId: r.studentId,
+    subjectId: r.subjectId,
+    sequenceId: r.sequenceId,
+    enrollmentId: r.enrollmentId,
+    sessionId: r.sessionId,
+    score: r.score,
+    total: r.total,
+    status: r.status as ResultStatus,
+    submittedAt: r.submittedAt || null,
+    createdAt: '',
+    updatedAt: '',
+  };
+}

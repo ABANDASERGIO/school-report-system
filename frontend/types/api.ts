@@ -118,6 +118,7 @@ export interface MarkEntryRequest {
   subjectId: string;
   sequenceId: string;
   enrollmentId: string;
+  sessionId: string;
   score: number;
   total: number;
 }
