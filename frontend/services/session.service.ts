@@ -59,4 +59,8 @@ export const sessionService = {
       { targetSessionId: toSessionId }
     );
   },
+
+  async archiveSession(id: string): Promise<AcademicSession> {
+    return apiClient.post<AcademicSession>(`/sessions/${id}/archive`);
+  },
 };

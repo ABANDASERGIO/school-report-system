@@ -25,7 +25,7 @@ export function Card({ children, className, hover = false, onClick }: CardProps)
 }
 
 interface CardHeaderProps {
-  title: string;
+  title: React.ReactNode;
   description?: string;
   action?: React.ReactNode;
   className?: string;

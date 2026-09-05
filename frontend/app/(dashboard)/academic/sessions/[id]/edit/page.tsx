@@ -2,26 +2,47 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSearchParams } from "next/navigation";
 import { sessionService } from "@/services/session.service";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { showToast } from "@/components/ui/Toast";
 import type { AcademicSession } from "@/types";
-import { ArrowLeft, Save, Users } from "lucide-react";
+import { ArrowLeft, Save } from "lucide-react";
 
-export default function CreateSessionPage() {
+export default function EditSessionPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({ name: "", startDate: "", endDate: "", isCurrent: false, carryForward: false });
+  const [isLoading, setIsLoading] = useState(true);
+  const [formData, setFormData] = useState({ name: "", startDate: "", endDate: "", isCurrent: false, isActive: true });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const resolvedParams = React.use(params);
+  const sessionId = resolvedParams.id;
 
   useEffect(() => {
-    const carryForward = searchParams.get('carryForward') === 'true';
-    setFormData((prev) => ({ ...prev, carryForward }));
-  }, [searchParams]);
+    async function load() {
+      try {
+        const session = await sessionService.getSessionById(sessionId);
+        if (session) {
+          setFormData({
+            name: session.name,
+            startDate: session.startDate,
+            endDate: session.endDate,
+            isCurrent: session.isCurrent,
+            isActive: session.isActive,
+          });
+        } else {
+          showToast({ type: "error", title: "Session not found" });
+          router.push("/academic/sessions");
+        }
+      } catch {
+        showToast({ type: "error", title: "Failed to load session" });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    load();
+  }, [sessionId, router]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -37,21 +58,35 @@ export default function CreateSessionPage() {
     if (!validate()) return;
     setIsSaving(true);
     try {
-      await sessionService.createSessionWithCarryForward(formData, formData.carryForward);
-      showToast({ type: "success", title: "Session created" });
+      await sessionService.updateSession(sessionId, {
+        name: formData.name,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        isCurrent: formData.isCurrent,
+        isActive: formData.isActive,
+      });
+      showToast({ type: "success", title: "Session updated" });
       router.push("/academic/sessions");
     } catch {
-      showToast({ type: "error", title: "Failed to create session" });
+      showToast({ type: "error", title: "Failed to update session" });
     } finally {
       setIsSaving(false);
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-fade-in max-w-lg mx-auto">
+        <Card><CardContent><div className="space-y-4">{[1,2,3].map((i) => (<div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />))}</div></CardContent></Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in max-w-lg mx-auto">
       <Button variant="ghost" size="sm" leftIcon={<ArrowLeft className="h-4 w-4" />} onClick={() => router.push("/academic/sessions")}>Back</Button>
       <Card>
-        <CardHeader title="New Academic Session" />
+        <CardHeader title="Edit Academic Session" />
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input label="Session Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} error={errors.name} placeholder="e.g., 2026/2027" />
@@ -64,15 +99,12 @@ export default function CreateSessionPage() {
               <span className="text-sm text-primary">Set as current session</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={formData.carryForward} onChange={(e) => setFormData({ ...formData, carryForward: e.target.checked })} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />
-              <div>
-                <span className="text-sm text-primary">Carry forward teacher assignments</span>
-                <p className="text-xs text-gray-400">Copy assignments from the previous academic year so teachers keep their classes.</p>
-              </div>
+              <input type="checkbox" checked={formData.isActive} onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />
+              <span className="text-sm text-primary">Active</span>
             </label>
             <div className="flex justify-end gap-3 pt-4">
               <Button variant="secondary" onClick={() => router.push("/academic/sessions")}>Cancel</Button>
-              <Button type="submit" variant="primary" isLoading={isSaving} leftIcon={<Save className="h-4 w-4" />}>Create</Button>
+              <Button type="submit" variant="primary" isLoading={isSaving} leftIcon={<Save className="h-4 w-4" />}>Save Changes</Button>
             </div>
           </form>
         </CardContent>

@@ -123,6 +123,49 @@ export const sessionService = {
       }
     }
 
+    // Auto-create 3 default terms with 2 sequences each
+    const existingTerms = await prisma.term.count({ where: { sessionId: newSession.id } });
+    if (existingTerms === 0) {
+      const sessionStart = newSession.startDate.getTime();
+      const sessionEnd = newSession.endDate.getTime();
+      const termDuration = (sessionEnd - sessionStart) / 3;
+      const termNames = ['First Term', 'Second Term', 'Third Term'];
+
+      for (let i = 0; i < 3; i++) {
+        const termStart = new Date(sessionStart + i * termDuration);
+        const termEnd = new Date(sessionStart + (i + 1) * termDuration);
+        const term = await prisma.term.create({
+          data: {
+            sessionId: newSession.id,
+            name: termNames[i],
+            sequenceCount: 2,
+            startDate: termStart,
+            endDate: termEnd,
+            isCurrent: i === 0,
+          },
+        });
+
+        // Create 2 sequences per term
+        const seqDuration = (termEnd.getTime() - termStart.getTime()) / 2;
+        const baseSeqNumber = i * 2 + 1;
+        for (let j = 0; j < 2; j++) {
+          const seqStart = new Date(termStart.getTime() + j * seqDuration);
+          const seqEnd = new Date(termStart.getTime() + (j + 1) * seqDuration);
+          await prisma.sequence.create({
+            data: {
+              termId: term.id,
+              sessionId: newSession.id,
+              name: `Sequence ${baseSeqNumber + j}`,
+              number: baseSeqNumber + j,
+              startDate: seqStart,
+              endDate: seqEnd,
+              isActive: false,
+            },
+          });
+        }
+      }
+    }
+
     return toSessionResponse(newSession);
   },
 
@@ -182,6 +225,27 @@ export const sessionService = {
         where: { id },
         data: { isCurrent: true, isActive: true },
       });
+    });
+
+    return toSessionResponse(result);
+  },
+
+  /**
+   * Archive a session (soft delete). Sets isActive = false.
+   * Cannot archive the currently active session.
+   */
+  async archiveSession(id: string): Promise<SessionResponse> {
+    const existing = await prisma.academicSession.findUnique({ where: { id } });
+    if (!existing) {
+      throw new ApiErrorClass(404, 'Academic session not found', 'SessionNotFound');
+    }
+    if (!existing.isActive) {
+      throw new ApiErrorClass(400, 'Session is already archived', 'SessionAlreadyArchived');
+    }
+
+    const result = await prisma.academicSession.update({
+      where: { id },
+      data: { isActive: false },
     });
 
     return toSessionResponse(result);

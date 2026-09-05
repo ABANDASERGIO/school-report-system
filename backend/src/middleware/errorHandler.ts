@@ -23,6 +23,22 @@ export function errorHandler(
     return;
   }
 
+  const message = err.message || 'An unexpected error occurred';
+  const isInfrastructureError =
+    err.name === 'PrismaClientInitializationError' ||
+    err.name === 'PrismaClientUnknownRequestError' ||
+    /Can't reach database server|database server|connection refused|ETIMEDOUT|ENOTFOUND|ECONNREFUSED/i.test(message);
+
+  if (isInfrastructureError) {
+    res.status(503).json({
+      success: false,
+      error: 'ServiceUnavailable',
+      message: 'Service is temporarily unavailable. Please check your internet connection and try again.',
+      statusCode: 503,
+    });
+    return;
+  }
+
   // Prisma known errors
   if (err.name === 'PrismaClientKnownRequestError') {
     const prismaError = err as any;
@@ -50,7 +66,7 @@ export function errorHandler(
   res.status(500).json({
     success: false,
     error: 'InternalServerError',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'An unexpected error occurred',
+    message: process.env.NODE_ENV === 'development' ? message : 'An unexpected error occurred',
     statusCode: 500,
   });
 }

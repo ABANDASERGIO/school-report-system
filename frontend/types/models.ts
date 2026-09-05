@@ -75,6 +75,7 @@ export interface AcademicSession {
   startDate: string;
   endDate: string;
   isCurrent: boolean;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -86,7 +87,17 @@ export interface Term {
   sequenceCount: number;
   startDate: string;
   endDate: string;
+  isCurrent?: boolean;
   session?: AcademicSession;
+  sequences?: Array<{
+    id: string;
+    termId: string;
+    name: string;
+    number: number;
+    startDate: string;
+    endDate: string;
+    isActive: boolean;
+  }>;
 }
 
 export interface Sequence {
@@ -129,6 +140,7 @@ export interface Result {
   subjectId: string;
   sequenceId: string;
   enrollmentId: string;
+  sessionId: string;
   score: number | null;
   total: number;
   status: ResultStatus;

@@ -10,6 +10,7 @@ export interface TermResponse {
   sequenceCount: number;
   startDate: string;
   endDate: string;
+  isCurrent: boolean;
   createdAt: string;
   updatedAt: string;
   session?: {
@@ -18,6 +19,7 @@ export interface TermResponse {
   };
   sequences?: Array<{
     id: string;
+    termId: string;
     name: string;
     number: number;
     startDate: string;
@@ -31,6 +33,7 @@ function toTermResponse(
   session?: { id: string; name: string } | null,
   sequences?: Array<{
     id: string;
+    termId: string;
     name: string;
     number: number;
     startDate: Date;
@@ -45,12 +48,14 @@ function toTermResponse(
     sequenceCount: term.sequenceCount,
     startDate: term.startDate.toISOString().split('T')[0],
     endDate: term.endDate.toISOString().split('T')[0],
+    isCurrent: term.isCurrent,
     createdAt: term.createdAt.toISOString(),
     updatedAt: term.updatedAt.toISOString(),
     ...(session && { session }),
     ...(sequences && {
       sequences: sequences.map((s) => ({
         id: s.id,
+        termId: s.termId,
         name: s.name,
         number: s.number,
         startDate: s.startDate.toISOString().split('T')[0],
@@ -69,9 +74,12 @@ export const termService = {
     const terms = await prisma.term.findMany({
       where: sessionId ? { sessionId } : undefined,
       orderBy: [{ sessionId: 'asc' }, { startDate: 'asc' }],
-      include: { session: { select: { id: true, name: true } } },
+      include: {
+        session: { select: { id: true, name: true } },
+        sequences: { orderBy: { number: 'asc' } },
+      },
     });
-    return terms.map((t) => toTermResponse(t, t.session));
+    return terms.map((t) => toTermResponse(t, t.session, t.sequences));
   },
 
   /**
@@ -86,6 +94,7 @@ export const termService = {
           orderBy: { number: 'asc' },
           select: {
             id: true,
+            termId: true,
             name: true,
             number: true,
             startDate: true,
@@ -175,5 +184,38 @@ export const termService = {
 
     await prisma.term.update({ where: { id }, data });
     return this.getTermById(id);
+  },
+
+  /**
+   * Set a term as the current one for its session. Unsets all other terms
+   * in the same session, and also marks the parent session as current.
+   */
+  async setCurrentTerm(termId: string, sessionId: string): Promise<TermResponse> {
+    const term = await prisma.term.findUnique({ where: { id: termId } });
+    if (!term || term.sessionId !== sessionId) {
+      throw new ApiErrorClass(404, 'Term not found', 'TermNotFound');
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.term.updateMany({
+        where: { sessionId, isCurrent: true, NOT: { id: termId } },
+        data: { isCurrent: false },
+      });
+      await tx.term.update({
+        where: { id: termId },
+        data: { isCurrent: true },
+      });
+
+      await tx.academicSession.updateMany({
+        where: { isCurrent: true, NOT: { id: sessionId } },
+        data: { isCurrent: false },
+      });
+      await tx.academicSession.update({
+        where: { id: sessionId },
+        data: { isCurrent: true },
+      });
+    });
+
+    return this.getTermById(termId);
   },
 };

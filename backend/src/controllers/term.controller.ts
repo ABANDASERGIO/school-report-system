@@ -42,4 +42,18 @@ export const termController = {
       next(error);
     }
   },
+
+  async setCurrent(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const sessionId = req.query.sessionId as string | undefined;
+      if (!sessionId) {
+        res.status(400).json({ success: false, error: 'ValidationError', message: 'sessionId query parameter is required', statusCode: 400 });
+        return;
+      }
+      const term = await termService.setCurrentTerm(String(req.params.id), sessionId);
+      res.status(200).json(successResponse(term, 'Current term updated'));
+    } catch (error) {
+      next(error);
+    }
+  },
 };

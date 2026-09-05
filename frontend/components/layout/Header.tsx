@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
 import { useAcademicYear } from "@/providers/AcademicYearProvider";
+import { useOnlineSync } from "@/providers/OnlineSyncProvider";
 import { APP_NAME } from "@/lib/constants";
 import { settingsService } from "@/services/settings.service";
 import { notificationService, type Notification } from "@/services/notification.service";
-import { Menu, LogOut, User, ChevronDown, CalendarDays, Bell, Check, CheckCheck } from "lucide-react";
+import { Menu, LogOut, User, ChevronDown, CalendarDays, Bell, Check, CheckCheck, WifiOff } from "lucide-react";
 
 interface HeaderProps {
   onMenuToggle: () => void;
@@ -139,7 +140,10 @@ export function Header({ onMenuToggle, title }: HeaderProps) {
             </div>
           )}
 
-          {/* Notifications Bell */}
+          {/* Sync Status Pill */}
+          <SyncStatusPill />
+
+          {/* User Menu */}
           {user && (
             <div className="relative" ref={notificationRef}>
               <button
@@ -272,5 +276,35 @@ export function Header({ onMenuToggle, title }: HeaderProps) {
         </div>
       </div>
     </header>
+  );
+}
+
+function SyncStatusPill() {
+  const { online, syncing, pendingSyncs } = useOnlineSync();
+
+  if (online && pendingSyncs === 0) {
+    return (
+      <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-[11px] font-medium border border-green-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+        Online
+      </span>
+    );
+  }
+
+  if (!online) {
+    return (
+      <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[11px] font-medium border border-amber-200">
+        <WifiOff className="h-3 w-3" />
+        Offline
+        {pendingSyncs > 0 && <span className="ml-1 font-semibold">· {pendingSyncs} pending</span>}
+      </span>
+    );
+  }
+
+  return (
+    <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] font-medium border border-blue-200">
+      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+      {syncing ? 'Syncing...' : `${pendingSyncs} pending`}
+    </span>
   );
 }
