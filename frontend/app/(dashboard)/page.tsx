@@ -21,6 +21,7 @@ import {
   Clock,
   ArrowRight,
   BookCopy,
+  Settings,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -250,7 +251,7 @@ function ProprietorDashboard({ data, currentSessionName }: { data: any; currentS
               { label: "Assignments", href: "/assignments", icon: BookCopy },
               { label: "Academic Sessions", href: "/academic/sessions", icon: CalendarDays },
               { label: "View Results", href: "/results", icon: ClipboardList },
-              { label: "School Settings", href: "/settings", icon: Users },
+              { label: "School Settings", href: "/settings", icon: Settings },
             ].map((action) => (
               <Link
                 key={action.href}
@@ -261,6 +262,13 @@ function ProprietorDashboard({ data, currentSessionName }: { data: any; currentS
                 <span className="text-sm font-medium text-primary">{action.label}</span>
               </Link>
             ))}
+            <Link
+              href="/academic/sessions/new?carryForward=true"
+              className="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed border-accent/40 bg-accent/5 hover:border-accent hover:bg-accent/10 transition-all text-center"
+            >
+              <CalendarDays className="h-6 w-6 text-accent" />
+              <span className="text-sm font-medium text-primary">Start New Academic Year</span>
+            </Link>
           </div>
         </CardContent>
       </Card>

@@ -33,6 +33,7 @@ function toTermResponse(
   session?: { id: string; name: string } | null,
   sequences?: Array<{
     id: string;
+    termId: string;
     name: string;
     number: number;
     startDate: Date;
@@ -93,6 +94,7 @@ export const termService = {
           orderBy: { number: 'asc' },
           select: {
             id: true,
+            termId: true,
             name: true,
             number: true,
             startDate: true,
@@ -186,7 +188,7 @@ export const termService = {
 
   /**
    * Set a term as the current one for its session. Unsets all other terms
-   * in the same session.
+   * in the same session, and also marks the parent session as current.
    */
   async setCurrentTerm(termId: string, sessionId: string): Promise<TermResponse> {
     const term = await prisma.term.findUnique({ where: { id: termId } });
@@ -201,6 +203,15 @@ export const termService = {
       });
       await tx.term.update({
         where: { id: termId },
+        data: { isCurrent: true },
+      });
+
+      await tx.academicSession.updateMany({
+        where: { isCurrent: true, NOT: { id: sessionId } },
+        data: { isCurrent: false },
+      });
+      await tx.academicSession.update({
+        where: { id: sessionId },
         data: { isCurrent: true },
       });
     });

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { sessionService } from "@/services/session.service";
 import { termService } from "@/services/term.service";
+import { useAcademicYear } from "@/providers/AcademicYearProvider";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -11,14 +12,18 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { showToast } from "@/components/ui/Toast";
 import type { AcademicSession, Term } from "@/types";
-import { ArrowLeft, CalendarDays, CheckCircle2, ChevronRight, Edit, Layers } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, ChevronRight, Edit, Layers, Archive, Ban } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
+  const { refreshSessions } = useAcademicYear();
   const [session, setSession] = useState<AcademicSession | null>(null);
   const [terms, setTerms] = useState<Term[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activatingId, setActivatingId] = useState<string | null>(null);
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const resolvedParams = React.use(params);
   const sessionId = resolvedParams.id;
 
@@ -45,12 +50,34 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     setActivatingId(termId);
     try {
       await termService.setCurrentTerm(termId, session.id);
-      setTerms((prev) => prev.map((t) => ({ ...t, isCurrent: t.id === termId })));
+      await refreshSessions();
+      const [s, t] = await Promise.all([
+        sessionService.getSessionById(sessionId),
+        termService.getTerms(sessionId),
+      ]);
+      if (s) setSession(s);
+      setTerms(t);
       showToast({ type: "success", title: "Term activated" });
     } catch {
       showToast({ type: "error", title: "Failed to activate term" });
     } finally {
       setActivatingId(null);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!session) return;
+    setIsArchiving(true);
+    try {
+      await sessionService.archiveSession(session.id);
+      await refreshSessions();
+      showToast({ type: "success", title: "Session archived" });
+      router.push("/academic/sessions");
+    } catch {
+      showToast({ type: "error", title: "Failed to archive session" });
+    } finally {
+      setIsArchiving(false);
+      setShowArchiveDialog(false);
     }
   };
 
@@ -72,10 +99,18 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="sm" leftIcon={<ArrowLeft className="h-4 w-4" />} onClick={() => router.push("/academic/sessions")}>Back</Button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-primary">{session.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-primary">{session.name}</h1>
+            {!session.isActive && <Badge variant="warning" size="sm"><Ban className="h-3 w-3 mr-0.5" />Archived</Badge>}
+          </div>
           <p className="text-sm text-gray-500">{new Date(session.startDate).toLocaleDateString()} - {new Date(session.endDate).toLocaleDateString()}</p>
         </div>
-        <Button variant="secondary" size="sm" leftIcon={<Edit className="h-4 w-4" />} onClick={() => router.push(`/academic/sessions/${session.id}/edit`)}>Edit</Button>
+        <div className="flex gap-2">
+          {session.isActive && (
+            <Button variant="secondary" size="sm" leftIcon={<Archive className="h-4 w-4" />} onClick={() => setShowArchiveDialog(true)}>Archive</Button>
+          )}
+          <Button variant="secondary" size="sm" leftIcon={<Edit className="h-4 w-4" />} onClick={() => router.push(`/academic/sessions/${session.id}/edit`)}>Edit</Button>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -119,6 +154,17 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           </Card>
         ))}
       </div>
+      <ConfirmDialog
+        isOpen={showArchiveDialog}
+        onClose={() => setShowArchiveDialog(false)}
+        onConfirm={handleArchive}
+        title="Archive Academic Session"
+        message="This will mark the session as archived. Historical data will be preserved, but it will no longer be available for active use. Teachers will not see this session. Are you sure?"
+        confirmLabel="Archive"
+        cancelLabel="Cancel"
+        variant="warning"
+        isLoading={isArchiving}
+      />
     </div>
   );
 }

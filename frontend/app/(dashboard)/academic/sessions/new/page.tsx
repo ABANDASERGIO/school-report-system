@@ -1,19 +1,27 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { sessionService } from "@/services/session.service";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { showToast } from "@/components/ui/Toast";
+import type { AcademicSession } from "@/types";
 import { ArrowLeft, Save, Users } from "lucide-react";
 
 export default function CreateSessionPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({ name: "", startDate: "", endDate: "", isCurrent: false, carryForward: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const carryForward = searchParams.get('carryForward') === 'true';
+    setFormData((prev) => ({ ...prev, carryForward }));
+  }, [searchParams]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};

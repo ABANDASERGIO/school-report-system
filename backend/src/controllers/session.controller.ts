@@ -117,4 +117,17 @@ export const sessionController = {
       next(error);
     }
   },
+
+  /**
+   * POST /api/v1/sessions/:id/archive
+   * Archive a session (soft delete). Proprietor only.
+   */
+  async archive(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const session = await sessionService.archiveSession(String(req.params.id));
+      res.status(200).json(successResponse(session, 'Session archived'));
+    } catch (error) {
+      next(error);
+    }
+  },
 };

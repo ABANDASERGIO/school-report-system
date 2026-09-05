@@ -19,6 +19,28 @@ const STORAGE_TOKEN_KEY = 'edugrade_token';
 const STORAGE_REFRESH_KEY = 'edugrade_refresh_token';
 const STORAGE_USER_KEY = 'edugrade_user';
 
+function sanitizeErrorMessage(message: string): string {
+  const lower = message.toLowerCase();
+  if (
+    lower.includes("can't reach database server") ||
+    lower.includes('database server') ||
+    lower.includes('connection refused') ||
+    lower.includes('etimedout') ||
+    lower.includes('enotfound') ||
+    lower.includes('econnrefused') ||
+    lower.includes('prisma') ||
+    lower.includes('pooler') ||
+    lower.includes('neon') ||
+    lower.includes('postgresql') ||
+    lower.includes('database') ||
+    lower.includes('network') ||
+    lower.includes('fetch failed')
+  ) {
+    return 'Service is temporarily unavailable. Please check your internet connection and try again.';
+  }
+  return message;
+}
+
 class ApiClient {
   private accessToken: string | null = null;
   private isRefreshing = false;
@@ -142,7 +164,7 @@ class ApiClient {
     } catch (networkError) {
       console.error(`[API] Network error for ${endpoint}:`, networkError);
       throw new Error(
-        `Cannot reach the server at ${API_BASE_URL}. Please make sure the backend is running.`
+        'Cannot reach the server. Please check your internet connection and try again.'
       );
     }
 
@@ -185,7 +207,8 @@ class ApiClient {
     }
 
     if (!body.success) {
-      throw new Error(body.message || `Request failed with status ${response.status}`);
+      const sanitized = sanitizeErrorMessage(body.message || `Request failed with status ${response.status}`);
+      throw new Error(sanitized);
     }
 
     return body.data;

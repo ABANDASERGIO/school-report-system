@@ -88,4 +88,15 @@ router.post(
   sessionController.carryForward
 );
 
+/**
+ * POST /api/v1/sessions/:id/archive
+ * Archive a session. Proprietor only.
+ */
+router.post(
+  '/:id/archive',
+  requireProprietor,
+  validateParams(sessionIdParamSchema),
+  sessionController.archive
+);
+
 export default router;

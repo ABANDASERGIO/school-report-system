@@ -231,6 +231,27 @@ export const sessionService = {
   },
 
   /**
+   * Archive a session (soft delete). Sets isActive = false.
+   * Cannot archive the currently active session.
+   */
+  async archiveSession(id: string): Promise<SessionResponse> {
+    const existing = await prisma.academicSession.findUnique({ where: { id } });
+    if (!existing) {
+      throw new ApiErrorClass(404, 'Academic session not found', 'SessionNotFound');
+    }
+    if (!existing.isActive) {
+      throw new ApiErrorClass(400, 'Session is already archived', 'SessionAlreadyArchived');
+    }
+
+    const result = await prisma.academicSession.update({
+      where: { id },
+      data: { isActive: false },
+    });
+
+    return toSessionResponse(result);
+  },
+
+  /**
    * Carry forward teacher assignments from one session to another.
    * Existing duplicates in the target session are skipped to preserve
    * the unique constraint.
