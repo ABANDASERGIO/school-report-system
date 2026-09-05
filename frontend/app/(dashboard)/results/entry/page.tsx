@@ -30,7 +30,7 @@ import { Save, Send, ClipboardPen, Users, BookOpen } from "lucide-react";
 export default function ResultEntryPage() {
   const router = useRouter();
   const { user, isProprietor } = useAuth();
-  const { activeSession } = useAcademicYear();
+  const { activeSession, activeTerm } = useAcademicYear();
   const [sessions, setSessions] = useState<AcademicSession[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
   const [sequences, setSequences] = useState<Sequence[]>([]);
@@ -52,6 +52,21 @@ export default function ResultEntryPage() {
   const [availableSubjectIds, setAvailableSubjectIds] = useState<string[] | null>(null);
 
   useEffect(() => {
+    if (activeSession) {
+      setSelectedSession(activeSession.id);
+    }
+  }, [activeSession]);
+
+  useEffect(() => {
+    if (activeTerm) {
+      setSelectedTerm(activeTerm.id);
+      if (activeTerm.sequences && activeTerm.sequences.length > 0) {
+        setSequences(activeTerm.sequences);
+      }
+    }
+  }, [activeTerm]);
+
+  useEffect(() => {
     Promise.all([
       sessionService.getSessions(),
       classService.getClasses(),
@@ -70,13 +85,25 @@ export default function ResultEntryPage() {
   }, []);
 
   useEffect(() => {
+    if (selectedSession) {
+      termService.getTerms(selectedSession).then(setTerms);
+    }
+  }, [selectedSession]);
+
+  useEffect(() => {
+    if (selectedTerm) {
+      sequenceService.getSequences(selectedTerm).then(setSequences);
+    }
+  }, [selectedTerm]);
+
+  useEffect(() => {
     async function loadTeacherData() {
-      if (isProprietor || !user) {
+      if (!user) {
         setTeacherAssignments([]);
         setAvailableClassIds(null);
         return;
       }
-      const teacher = await teacherService.getTeachers().then((teachers) => teachers.find((t) => t.userId === user.id));
+      const teacher = isProprietor ? null : await teacherService.getMyTeacherProfile();
       if (!teacher) {
         setTeacherAssignments([]);
         setAvailableClassIds(null);
@@ -247,8 +274,8 @@ export default function ResultEntryPage() {
       <Card>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Select label="Session" value={selectedSession} onChange={(e) => { setSelectedSession(e.target.value); setSelectedClass(""); setSelectedSubject(""); }} options={sessions.map((s) => ({ value: s.id, label: s.name }))} placeholder="Select session" />
-            <Select label="Term" value={selectedTerm} onChange={(e) => setSelectedTerm(e.target.value)} options={terms.map((t) => ({ value: t.id, label: t.name }))} placeholder="Select term" disabled={!selectedSession} />
+            <Select label="Session" value={selectedSession} onChange={(e) => { setSelectedSession(e.target.value); setSelectedClass(""); setSelectedSubject(""); setSelectedTerm(""); setSequences([]); }} options={sessions.map((s) => ({ value: s.id, label: s.name }))} placeholder="Select session" disabled />
+            <Select label="Term" value={selectedTerm} onChange={(e) => { setSelectedTerm(e.target.value); setSequences([]); }} options={terms.map((t) => ({ value: t.id, label: t.name }))} placeholder="Select term" disabled />
             <Select label="Sequence" value={selectedSequence} onChange={(e) => setSelectedSequence(e.target.value)} options={sequences.map((s) => ({ value: s.id, label: s.name }))} placeholder="Select sequence" disabled={!selectedTerm} />
             <Select label="Class" value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} options={filteredClasses.map((c) => ({ value: c.id, label: c.name }))} placeholder="Select class" />
             <Select label="Subject" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} options={filteredSubjects.map((s) => ({ value: s.id, label: s.name }))} placeholder="Select subject" disabled={filteredSubjects.length === 0} />

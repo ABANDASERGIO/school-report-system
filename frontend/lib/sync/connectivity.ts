@@ -6,7 +6,8 @@
 
 type Listener = (online: boolean) => void;
 
-const HEALTH_URL = '/health';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const HEALTH_URL = `${API_BASE_URL.replace(/\/api\/v1\/?$/, '')}/health`;
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
 let online = typeof navigator !== 'undefined' ? navigator.onLine : true;

@@ -22,4 +22,8 @@ export const termService = {
   async updateTerm(id: string, data: Partial<Term>): Promise<Term> {
     return apiClient.patch<Term>(`/terms/${id}`, data);
   },
+
+  async setCurrentTerm(id: string, sessionId: string): Promise<Term> {
+    return apiClient.post<Term>(`/terms/${id}/set-current?sessionId=${encodeURIComponent(sessionId)}`);
+  },
 };

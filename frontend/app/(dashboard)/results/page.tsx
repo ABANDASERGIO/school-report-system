@@ -26,7 +26,7 @@ import { ClipboardList, Lock, Unlock, CheckCircle2, Clock, FileText } from "luci
 export default function ResultsPage() {
   const router = useRouter();
   const { user, isProprietor } = useAuth();
-  const { activeSession } = useAcademicYear();
+  const { activeSession, activeTerm } = useAcademicYear();
   const [results, setResults] = useState<Result[]>([]);
   const [sessions, setSessions] = useState<AcademicSession[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
@@ -39,6 +39,21 @@ export default function ResultsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [marksEntryOpen, setMarksEntryOpen] = useState(true);
   const [teacherSubjectIds, setTeacherSubjectIds] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (activeSession) {
+      setSelectedSession(activeSession.id);
+    }
+  }, [activeSession]);
+
+  useEffect(() => {
+    if (activeTerm) {
+      setSelectedTerm(activeTerm.id);
+      if (activeTerm.sequences && activeTerm.sequences.length > 0) {
+        setSequences(activeTerm.sequences);
+      }
+    }
+  }, [activeTerm]);
 
   useEffect(() => {
     Promise.all([
@@ -58,14 +73,26 @@ export default function ResultsPage() {
   }, []);
 
   useEffect(() => {
+    if (selectedSession) {
+      termService.getTerms(selectedSession).then(setTerms);
+    }
+  }, [selectedSession]);
+
+  useEffect(() => {
+    if (selectedTerm && !activeTerm?.sequences?.length) {
+      sequenceService.getSequences(selectedTerm).then(setSequences);
+    }
+  }, [selectedTerm, activeTerm]);
+
+  useEffect(() => {
     async function loadTeacherData() {
-      if (isProprietor || !user) {
+      if (!user) {
         setTeacherSubjectIds(null);
         return;
       }
-      const teacher = await teacherService.getTeachers().then((teachers) => teachers.find((t) => t.userId === user.id));
+      const teacher = isProprietor ? null : await teacherService.getMyTeacherProfile();
       if (!teacher) {
-        setTeacherSubjectIds(null);
+        setTeacherSubjectIds([]);
         return;
       }
       const assignments = await assignmentService.getAssignmentsByTeacher(teacher.id);
@@ -82,6 +109,7 @@ export default function ResultsPage() {
     setSelectedSession(sessionId);
     termService.getTerms(sessionId).then(setTerms);
     setSelectedTerm("");
+    setSequences([]);
     setSelectedSequence("");
   };
 
@@ -144,18 +172,26 @@ export default function ResultsPage() {
     }
   };
 
-  const getStudentName = (studentId: string) => {
-    const names: Record<string, string> = {
-      "stu-001": "Alice Nkwi", "stu-002": "Bob Efande", "stu-003": "Clara Mbah",
-      "stu-004": "David Taku", "stu-005": "Esther Ngoe", "stu-006": "Francis Lyonga",
-      "stu-007": "Grace Asobo", "stu-008": "Henry Mokube",
-    };
-    return names[studentId] || studentId;
-  };
-
   const getSubjectName = (id: string) => {
     const s = subjects.find((s) => s.id === id);
     return s?.name || "Unknown";
+  };
+
+  const getStudentDisplay = (r: Result) => {
+    if (r.student?.firstName && r.student?.lastName) {
+      return `${r.student.firstName} ${r.student.lastName}`;
+    }
+    return r.student?.studentNumber || r.studentId;
+  };
+
+  const getStudentInitials = (r: Result) => {
+    if (r.student?.firstName && r.student?.lastName) {
+      return `${r.student.firstName[0]}${r.student.lastName[0]}`.toUpperCase();
+    }
+    if (r.student?.studentNumber) {
+      return r.student.studentNumber.slice(0, 2).toUpperCase();
+    }
+    return r.studentId.slice(0, 2).toUpperCase();
   };
 
   return (
@@ -174,8 +210,8 @@ export default function ResultsPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        <Select label="Academic Session" value={selectedSession} onChange={(e) => handleSessionChange(e.target.value)} options={sessions.map((s) => ({ value: s.id, label: s.name }))} placeholder="Select session" />
-        <Select label="Term" value={selectedTerm} onChange={(e) => setSelectedTerm(e.target.value)} options={terms.map((t) => ({ value: t.id, label: t.name }))} placeholder="Select term" disabled={!selectedSession} />
+        <Select label="Academic Session" value={selectedSession} onChange={(e) => handleSessionChange(e.target.value)} options={sessions.map((s) => ({ value: s.id, label: s.name }))} placeholder="Select session" disabled />
+        <Select label="Term" value={selectedTerm} onChange={(e) => { setSelectedTerm(e.target.value); setSequences([]); }} options={terms.map((t) => ({ value: t.id, label: t.name }))} placeholder="Select term" disabled />
         <Select label="Sequence" value={selectedSequence} onChange={(e) => setSelectedSequence(e.target.value)} options={sequences.map((s) => ({ value: s.id, label: s.name }))} placeholder="Select sequence" disabled={!selectedTerm} />
         <Select label="Subject" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} options={isProprietor ? subjects.map((s) => ({ value: s.id, label: s.name })) : subjects.filter((s) => teacherSubjectIds?.includes(s.id)).map((s) => ({ value: s.id, label: s.name }))} placeholder="Select subject" disabled={!selectedSequence} />
       </div>
@@ -191,10 +227,10 @@ export default function ResultsPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
-                    <span className="text-accent font-semibold text-sm">{getStudentName(r.studentId).split(" ").map((n) => n[0]).join("")}</span>
+                    <span className="text-accent font-semibold text-sm">{getStudentInitials(r)}</span>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-primary">{getStudentName(r.studentId)}</p>
+                    <p className="text-sm font-medium text-primary">{getStudentDisplay(r)}</p>
                     <p className="text-xs text-gray-500">{getSubjectName(r.subjectId)}</p>
                   </div>
                 </div>

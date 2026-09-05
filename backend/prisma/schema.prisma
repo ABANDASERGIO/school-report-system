@@ -228,6 +228,7 @@ model Term {
   sequenceCount Int      @default(2)
   startDate     DateTime @db.Date
   endDate       DateTime @db.Date
+  isCurrent     Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -238,6 +239,7 @@ model Term {
   sequences Sequence[]
 
   @@index([sessionId])
+  @@index([sessionId, isCurrent])
 }
 
 // ============================================

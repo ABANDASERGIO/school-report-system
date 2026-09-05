@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import type { AcademicSession } from "@/types";
-import { Plus, CalendarDays, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Plus, CalendarDays, ChevronRight, CheckCircle2, Edit } from "lucide-react";
 
 export default function SessionsPage() {
   const router = useRouter();
@@ -34,7 +34,7 @@ export default function SessionsPage() {
         <div className="space-y-3">
           {sessions.map((s) => (
             <Card key={s.id} hover>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between" onClick={(e) => { if ((e.target as HTMLElement).closest('button')) return; router.push(`/academic/sessions/${s.id}`); }}>
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center"><CalendarDays className="h-6 w-6 text-accent" /></div>
                   <div>
@@ -45,7 +45,10 @@ export default function SessionsPage() {
                     <p className="text-xs text-gray-500 mt-0.5">{new Date(s.startDate).toLocaleDateString()} - {new Date(s.endDate).toLocaleDateString()}</p>
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-gray-300" />
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); router.push(`/academic/sessions/${s.id}/edit`); }}><Edit className="h-4 w-4" /></Button>
+                  <ChevronRight className="h-4 w-4 text-gray-300" />
+                </div>
               </div>
             </Card>
           ))}

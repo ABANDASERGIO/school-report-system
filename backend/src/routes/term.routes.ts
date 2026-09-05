@@ -35,4 +35,11 @@ router.patch(
   termController.update
 );
 
+router.post(
+  '/:id/set-current',
+  requireProprietor,
+  validateParams(termIdParamSchema),
+  termController.setCurrent
+);
+
 export default router;

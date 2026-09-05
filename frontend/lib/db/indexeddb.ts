@@ -1,4 +1,4 @@
-import { promisifyRequest, promisifyTransaction } from '@/lib/db/idb-promisify';
+import { promisifyRequest } from '@/lib/db/idb-promisify';
 
 let dbInstance: IDBDatabase | null = null;
 
@@ -14,66 +14,49 @@ export async function openLocalDb(): Promise<IDBDatabase> {
     throw new Error('IndexedDB is not available in this browser');
   }
 
-  const db = await promisifyRequest<IDBDatabase>(
-    indexedDB.open('edugrade-offline', 1),
-    'upgradeneeded'
-  );
+  const request = indexedDB.open('edugrade-offline', 2);
+  request.addEventListener('upgradeneeded', () => {
+    const db = request.result;
+    const makeStore = (name: string, keyPath: string, indexes: { key: string; unique?: boolean }[] = []) => {
+      const store = db.objectStoreNames.contains(name)
+        ? request.transaction!.objectStore(name)
+        : db.createObjectStore(name, { keyPath });
+      for (const idx of indexes) {
+        if (!store.indexNames.contains(idx.key)) {
+          store.createIndex(idx.key, idx.key, idx.unique ? { unique: true } : undefined);
+        }
+      }
+    };
 
-  if (db.objectStoreNames.contains('sessions')) return db;
+    makeStore('sessions', 'id', [{ key: 'isCurrent' }]);
+    makeStore('terms', 'id', [{ key: 'sessionId' }]);
+    makeStore('sequences', 'id', [
+      { key: 'sessionId' },
+      { key: 'termId' },
+      { key: 'isActive' },
+    ]);
+    makeStore('classes', 'id');
+    makeStore('subjects', 'id');
+    makeStore('assignments', 'id', [{ key: 'teacherId' }, { key: 'classId' }]);
+    makeStore('students', 'id', [{ key: 'studentNumber' }]);
+    makeStore('enrollments', 'id', [
+      { key: 'studentId' },
+      { key: 'classId' },
+      { key: 'sessionId' },
+      { key: 'status' },
+    ]);
+    makeStore('results', 'id', [
+      { key: 'studentId' },
+      { key: 'subjectId' },
+      { key: 'sequenceId' },
+      { key: 'sessionId' },
+      { key: 'dirty' },
+      { key: 'pendingOpId' },
+    ]);
+    makeStore('sync_queue', 'id', [{ key: 'status' }, { key: 'nextAttemptAt' }]);
+  });
 
-  // ---- schema migration ----
-  const tx = db.transaction(
-    [
-      'sessions',
-      'terms',
-      'sequences',
-      'classes',
-      'subjects',
-      'assignments',
-      'students',
-      'enrollments',
-      'results',
-      'sync_queue',
-    ],
-    'readwrite'
-  );
-
-  const makeStore = (name: string, keyPath: string, indexes: { key: string; unique?: boolean }[] = []) => {
-    const store = tx.objectStore(name);
-    for (const idx of indexes) {
-      store.createIndex(idx.key, idx.key, idx.unique ? { unique: true } : undefined);
-    }
-    return store;
-  };
-
-  makeStore('sessions', 'id', [{ key: 'isCurrent' }]);
-  makeStore('terms', 'id', [{ key: 'sessionId' }]);
-  makeStore('sequences', 'id', [
-    { key: 'sessionId' },
-    { key: 'termId' },
-    { key: 'isActive' },
-  ]);
-  makeStore('classes', 'id');
-  makeStore('subjects', 'id');
-  makeStore('assignments', 'id', [{ key: 'teacherId' }, { key: 'classId' }]);
-  makeStore('students', 'id', [{ key: 'studentNumber' }]);
-  makeStore('enrollments', 'id', [
-    { key: 'studentId' },
-    { key: 'classId' },
-    { key: 'sessionId' },
-    { key: 'status' },
-  ]);
-  makeStore('results', 'id', [
-    { key: 'studentId' },
-    { key: 'subjectId' },
-    { key: 'sequenceId' },
-    { key: 'sessionId' },
-    { key: 'dirty' },
-    { key: 'pendingOpId' },
-  ]);
-  makeStore('sync_queue', 'id', [{ key: 'status' }, { key: 'nextAttemptAt' }]);
-
-  await promisifyTransaction(tx, 'complete');
+  const db = await promisifyRequest<IDBDatabase>(request, 'success');
 
   dbInstance = db;
   return db;
