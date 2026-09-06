@@ -7,17 +7,20 @@ export function useMediaQuery(query: string): boolean {
 
   useEffect(() => {
     const media = window.matchMedia(query);
-    if (media.matches !== matches) {
+    const raf = requestAnimationFrame(() => {
       setMatches(media.matches);
-    }
+    });
 
     const listener = (event: MediaQueryListEvent) => {
       setMatches(event.matches);
     };
 
     media.addEventListener("change", listener);
-    return () => media.removeEventListener("change", listener);
-  }, [query, matches]);
+    return () => {
+      media.removeEventListener("change", listener);
+      cancelAnimationFrame(raf);
+    };
+  }, [query]);
 
   return matches;
 }

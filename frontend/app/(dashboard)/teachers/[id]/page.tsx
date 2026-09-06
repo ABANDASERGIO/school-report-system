@@ -37,8 +37,6 @@ export default function TeacherDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<Partial<Teacher>>({});
 
-  useEffect(() => { loadData(); }, [params.id]);
-
   const loadData = async () => {
     try {
       const [teacherData, assignmentData, clsData, subData, sessionsData] = await Promise.all([
@@ -66,6 +64,13 @@ export default function TeacherDetailPage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      loadData();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [params.id]);
 
   const handleSave = async () => {
     if (!teacher) return;
@@ -95,8 +100,8 @@ export default function TeacherDetailPage() {
       await teacherService.updateTeacher(teacher.id, { photoUrl: result.url, photoPublicId: result.publicId });
       showToast({ type: "success", title: "Photo updated" });
       loadData();
-    } catch (err: any) {
-      showToast({ type: "error", title: "Failed to update photo", message: err.message });
+    } catch (err) {
+      showToast({ type: "error", title: "Failed to update photo", message: err instanceof Error ? err.message : "Upload failed" });
     }
   };
 
@@ -111,8 +116,8 @@ export default function TeacherDetailPage() {
       await teacherService.updateTeacher(teacher.id, { photoUrl: "", photoPublicId: "" });
       showToast({ type: "success", title: "Photo removed" });
       loadData();
-    } catch (err: any) {
-      showToast({ type: "error", title: "Failed to remove photo", message: err.message });
+    } catch (err) {
+      showToast({ type: "error", title: "Failed to remove photo", message: err instanceof Error ? err.message : "Delete failed" });
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };

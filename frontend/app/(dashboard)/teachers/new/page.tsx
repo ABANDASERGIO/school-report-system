@@ -60,8 +60,8 @@ export default function CreateTeacherPage() {
       const result = await uploadTeacherPhoto(file, tempId);
       setPhotoPreview(result.url);
       setFormData((prev) => ({ ...prev, photoUrl: result.url, photoPublicId: result.publicId }));
-    } catch (err: any) {
-      showToast({ type: "error", title: "Failed to upload photo", message: err.message });
+    } catch (err) {
+      showToast({ type: "error", title: "Failed to upload photo", message: err instanceof Error ? err.message : "Upload failed" });
     }
   };
 

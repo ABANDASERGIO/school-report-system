@@ -29,28 +29,6 @@ export default function StudentsPage() {
   const [selectedClass, setSelectedClass] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      setIsLoading(true);
-      try {
-        const [classesData] = await Promise.all([
-          classService.getClasses(),
-        ]);
-        setClasses(classesData);
-        await loadStudents();
-      } catch (error) {
-        console.error("Failed to load students:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    load();
-  }, []);
-
-  useEffect(() => {
-    loadStudents();
-  }, [activeSession, selectedClass]);
-
   const loadStudents = async () => {
     if (!activeSession) {
       setStudents([]);
@@ -78,6 +56,31 @@ export default function StudentsPage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    async function load() {
+      setIsLoading(true);
+      try {
+        const [classesData] = await Promise.all([
+          classService.getClasses(),
+        ]);
+        setClasses(classesData);
+        await loadStudents();
+      } catch (error) {
+        console.error("Failed to load students:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      loadStudents();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [activeSession, selectedClass]);
 
   const handleDelete = async () => {
     if (!deleteTarget || !activeSession) return;

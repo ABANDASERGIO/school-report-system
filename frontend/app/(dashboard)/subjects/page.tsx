@@ -24,8 +24,6 @@ export default function SubjectsPage() {
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Subject | null>(null);
 
-  useEffect(() => { loadData(); }, []);
-
   const loadData = async () => {
     setIsLoading(true);
     try {
@@ -50,6 +48,13 @@ export default function SubjectsPage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      loadData();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;

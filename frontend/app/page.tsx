@@ -11,22 +11,16 @@ import {
   GraduationCap,
   Users,
   School,
-  BookOpen,
   CalendarDays,
   ClipboardList,
-  Wifi,
-  WifiOff,
   Shield,
   Lock,
-  ChevronRight,
   Menu,
   X,
   ArrowRight,
   CheckCircle2,
-  Clock,
   FileText,
   UserCheck,
-  Settings,
 } from "lucide-react";
 
 const features = [
@@ -287,7 +281,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, index) => (
+            {features.map((feature) => (
               <Card key={feature.title} hover className="group">
                 <CardContent>
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-colors">

@@ -94,7 +94,7 @@ export const resultService = {
       }
     }
     const all = await (await import('@/lib/db/repos/results.repo')).getAllResults();
-    return all.filter((r) => (r as any).sessionId === sessionId).map(toApiResult);
+    return all.filter((r) => r.sessionId === sessionId).map(toApiResult);
   },
 
   async getResultById(id: string): Promise<Result | undefined> {

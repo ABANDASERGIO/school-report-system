@@ -114,8 +114,10 @@ async function postItem(item: {
 
 function isPermanentError(err: unknown): boolean {
   if (err instanceof TypeError) return false; // network
-  const status = (err as any)?.statusCode;
-  if (typeof status === 'number' && status >= 400 && status < 500) return true;
+  if (typeof err === 'object' && err !== null && 'statusCode' in err) {
+    const status = (err as { statusCode?: number }).statusCode;
+    if (typeof status === 'number' && status >= 400 && status < 500) return true;
+  }
   return false;
 }
 

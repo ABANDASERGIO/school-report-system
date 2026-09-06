@@ -22,8 +22,6 @@ export default function TeachersPage() {
   const [suspendTarget, setSuspendTarget] = useState<Teacher | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Teacher | null>(null);
 
-  useEffect(() => { loadTeachers(); }, []);
-
   const loadTeachers = async () => {
     setIsLoading(true);
     try {
@@ -35,6 +33,13 @@ export default function TeachersPage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      loadTeachers();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   const handleSuspend = async () => {
     if (!suspendTarget) return;

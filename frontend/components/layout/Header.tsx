@@ -48,10 +48,15 @@ export function Header({ onMenuToggle, title }: HeaderProps) {
 
   useEffect(() => {
     if (!user) return;
-    refreshNotifications();
+    const raf = requestAnimationFrame(() => {
+      refreshNotifications();
+    });
     // Poll every 60s for new notifications
     const t = setInterval(refreshNotifications, 60_000);
-    return () => clearInterval(t);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearInterval(t);
+    };
   }, [user, refreshNotifications]);
 
   const handleNotificationClick = async (n: Notification) => {
