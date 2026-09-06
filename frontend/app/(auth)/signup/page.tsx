@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { APP_NAME, APP_TAGLINE } from "@/lib/constants";
-import { UserPlus } from "lucide-react";
+import { UserPlus, ArrowLeft } from "lucide-react";
 import type { RegisterRequest } from "@/types";
 
 export default function SignupPage() {
@@ -93,7 +93,18 @@ export default function SignupPage() {
 
   if (isLocked) {
     return (
-      <Card className="shadow-lg">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="w-full max-w-md">
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={<ArrowLeft className="h-4 w-4" />}
+            onClick={() => router.push("/")}
+            className="mb-4"
+          >
+            Back to Home
+          </Button>
+          <Card className="shadow-lg">
         <CardContent>
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
@@ -112,11 +123,24 @@ export default function SignupPage() {
           </div>
         </CardContent>
       </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card className="shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md">
+        <Button
+          variant="ghost"
+          size="sm"
+          leftIcon={<ArrowLeft className="h-4 w-4" />}
+          onClick={() => router.push("/")}
+          className="mb-4"
+        >
+          Back to Home
+        </Button>
+        <Card className="shadow-lg">
       <CardContent>
         {/* Logo & Branding */}
         <div className="text-center mb-8">
@@ -214,8 +238,10 @@ export default function SignupPage() {
         </form>
 
         {/* Security Note */}
-     
+        
       </CardContent>
     </Card>
+    </div>
+    </div>
   );
 }
