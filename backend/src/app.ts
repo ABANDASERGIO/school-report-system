@@ -1,6 +1,5 @@
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
 import { env } from './config/env';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { API_PREFIX } from './config/constants';
@@ -29,33 +28,6 @@ export function createApp(): Application {
   // Body parsing middleware
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-  // Rate limiting for public auth endpoints
-  const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: {
-      success: false,
-      error: 'TooManyRequests',
-      message: 'Too many attempts. Please try again later.',
-      statusCode: 429,
-    },
-  });
-
-  const otpLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
-    max: 5,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: {
-      success: false,
-      error: 'TooManyRequests',
-      message: 'Too many OTP requests. Please try again in an hour.',
-      statusCode: 429,
-    },
-  });
 
   // CORS
   // In development, allow any localhost origin. In production, use the configured FRONTEND_URL.
@@ -90,15 +62,7 @@ export function createApp(): Application {
     });
   });
 
-  // API routes with rate limiting
-  app.use(`${API_PREFIX}/auth/register`, authLimiter);
-  app.use(`${API_PREFIX}/auth/login`, authLimiter);
-  app.use(`${API_PREFIX}/auth/forgot-password`, authLimiter);
-  app.use(`${API_PREFIX}/auth/request-code`, otpLimiter);
-  app.use(`${API_PREFIX}/auth/verify-code`, authLimiter);
-  app.use(`${API_PREFIX}/auth/reset-password`, authLimiter);
-  app.use(`${API_PREFIX}/auth/has-proprietor`, authLimiter);
-
+  // API routes
   app.use(`${API_PREFIX}/auth`, authRoutes);
   app.use(`${API_PREFIX}/teachers`, teacherRoutes);
   app.use(`${API_PREFIX}/settings`, settingsRoutes);
