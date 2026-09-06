@@ -32,10 +32,12 @@ export default function ResultsPage() {
   const [terms, setTerms] = useState<Term[]>([]);
   const [sequences, setSequences] = useState<Sequence[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
   const [selectedSession, setSelectedSession] = useState("");
   const [selectedTerm, setSelectedTerm] = useState("");
   const [selectedSequence, setSelectedSequence] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
+  const [selectedClass, setSelectedClass] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [marksEntryOpen, setMarksEntryOpen] = useState(true);
   const [teacherSubjectIds, setTeacherSubjectIds] = useState<string[] | null>(null);
@@ -59,10 +61,12 @@ export default function ResultsPage() {
     Promise.all([
       sessionService.getSessions(),
       subjectService.getSubjects(),
+      classService.getClasses(),
       settingsService.getSetting("marks_entry_open"),
-    ]).then(([ses, sub, setting]) => {
+    ]).then(([ses, sub, cls, setting]) => {
       setSessions(ses);
       setSubjects(sub);
+      setClasses(cls);
       if (setting) setMarksEntryOpen(setting.value === "true");
       const current = ses.find((s) => s.isCurrent);
       if (current) {
@@ -111,6 +115,12 @@ export default function ResultsPage() {
     setSelectedTerm("");
     setSequences([]);
     setSelectedSequence("");
+    setSelectedClass("");
+  };
+
+  const handleClassChange = (classId: string) => {
+    setSelectedClass(classId);
+    setSelectedSubject("");
   };
 
   const handleTermChange = (termId: string) => {
@@ -131,26 +141,28 @@ export default function ResultsPage() {
   }, [selectedTerm]);
 
   useEffect(() => {
-    if (selectedSequence && selectedSubject) {
-      resultService.getResultsBySubjectAndSequence(selectedSubject, selectedSequence).then((res) => {
-        let filtered = res;
-        if (!isProprietor && teacherSubjectIds) {
-          filtered = res.filter((r) => teacherSubjectIds.includes(r.subjectId));
-        }
-        setResults(filtered);
-      });
-    } else if (selectedSequence) {
-      resultService.getResults(selectedSequence).then((res) => {
-        let filtered = res;
-        if (!isProprietor && teacherSubjectIds) {
-          filtered = res.filter((r) => teacherSubjectIds.includes(r.subjectId));
-        }
-        setResults(filtered);
-      });
-    } else {
+    if (!selectedSequence) {
       setResults([]);
+      return;
     }
-  }, [selectedSequence, selectedSubject, isProprietor, teacherSubjectIds]);
+    const fetchResults = async () => {
+      let res: Result[];
+      if (selectedSubject) {
+        res = await resultService.getResultsBySubjectAndSequence(selectedSubject, selectedSequence);
+      } else {
+        res = await resultService.getResults(selectedSequence);
+      }
+      let filtered = res;
+      if (selectedClass) {
+        filtered = filtered.filter((r) => r.enrollment?.classId === selectedClass);
+      }
+      if (!isProprietor && teacherSubjectIds) {
+        filtered = filtered.filter((r) => teacherSubjectIds.includes(r.subjectId));
+      }
+      setResults(filtered);
+    };
+    fetchResults();
+  }, [selectedSequence, selectedSubject, selectedClass, isProprietor, teacherSubjectIds]);
 
   const handleLock = async () => {
     if (!selectedSequence) return;
@@ -211,7 +223,8 @@ export default function ResultsPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         <Select label="Academic Session" value={selectedSession} onChange={(e) => handleSessionChange(e.target.value)} options={sessions.map((s) => ({ value: s.id, label: s.name }))} placeholder="Select session" disabled />
-        <Select label="Term" value={selectedTerm} onChange={(e) => { setSelectedTerm(e.target.value); setSequences([]); }} options={terms.map((t) => ({ value: t.id, label: t.name }))} placeholder="Select term" disabled />
+        <Select label="Class" value={selectedClass} onChange={(e) => handleClassChange(e.target.value)} options={classes.map((c) => ({ value: c.id, label: c.name }))} placeholder="Select class" disabled={!selectedSession} />
+        <Select label="Term" value={selectedTerm} onChange={(e) => { setSelectedTerm(e.target.value); setSequences([]); }} options={terms.map((t) => ({ value: t.id, label: t.name }))} placeholder="Select term" disabled={!selectedSession} />
         <Select label="Sequence" value={selectedSequence} onChange={(e) => setSelectedSequence(e.target.value)} options={sequences.map((s) => ({ value: s.id, label: s.name }))} placeholder="Select sequence" disabled={!selectedTerm} />
         <Select label="Subject" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} options={isProprietor ? subjects.map((s) => ({ value: s.id, label: s.name })) : subjects.filter((s) => teacherSubjectIds?.includes(s.id)).map((s) => ({ value: s.id, label: s.name }))} placeholder="Select subject" disabled={!selectedSequence} />
       </div>

@@ -28,12 +28,11 @@ const TYPE_LABELS: Record<ReportCardType, { termName: string; termSequenceLabel:
 /**
  * Build the per-subject result rows for a single student in a session.
  *
- * - Pulls every Result row for the student in the session, grouped by
- *   (subjectId, sequenceId) so we have 1–6 sequence scores per subject.
- * - For each subject offered in the student's class (via SubjectClass),
- *   computes term1/2/3 averages and (for the final view) the annual
- *   average.
- * - For each subject, looks up the teacher who is assigned to teach
+ * - Starts from subjects assigned to the student's class via SubjectClass.
+ * - Only includes subjects for which the student has at least one mark.
+ * - A mark of 0 is treated as a valid mark and is included.
+ * - Subjects with no marks at all are excluded from the report card.
+ * - For each included subject, looks up the teacher who is assigned to teach
  *   that subject in the student's class for the session.
  */
 async function buildSubjectResults(
@@ -51,7 +50,8 @@ async function buildSubjectResults(
 
   const subjectIds = subjectLinks.map((l) => l.subjectId);
 
-  // All results for this student/session, grouped into a map
+  // All results for this student/session, but ONLY for subjects
+  // that belong to the student's class.
   const results = await prisma.result.findMany({
     where: {
       studentId,
@@ -61,7 +61,8 @@ async function buildSubjectResults(
     select: { subjectId: true, sequenceId: true, score: true, total: true },
   });
 
-  // Group scores by subject and sequence number
+  // Group scores by subject and sequence number.
+  // Only subjects with at least one non-null score are kept.
   const scoresBySubject = new Map<
     string,
     Map<number, { score: number; total: number }>
@@ -82,6 +83,8 @@ async function buildSubjectResults(
     });
   }
 
+  if (scoresBySubject.size === 0) return [];
+
   // Teacher lookup: which teacher teaches (subject, thisClass, thisSession)?
   const assignments = await prisma.assignment.findMany({
     where: {
@@ -101,11 +104,14 @@ async function buildSubjectResults(
     }
   }
 
+  // Build report rows ONLY for class subjects the student actually has marks for.
   const out: SubjectResult[] = [];
   for (const link of subjectLinks) {
     const s = link.subject;
     const scores = scoresBySubject.get(s.id);
-    const get = (n: number): number | null => scores?.get(n)?.score ?? null;
+    if (!scores) continue;
+
+    const get = (n: number): number | null => scores.get(n)?.score ?? null;
 
     const seq1 = get(1);
     const seq2 = get(2);
@@ -417,6 +423,9 @@ async function buildSingleReport(
     'school_logo',
     'principal_name',
     'class_teacher_name',
+    'teacher_comment',
+    'principal_comment',
+    'promotion_decision',
     'attendance_days',
     'attendance_present',
   ]);
@@ -446,9 +455,9 @@ async function buildSingleReport(
     totalStudentsInClass: classEnrollments.length,
     attendance: parseInt(settings.attendance_present, 10) || 0,
     totalDays: parseInt(settings.attendance_days, 10) || 0,
-    teacherComment: '',
-    principalComment: '',
-    promotionDecision: '',
+    teacherComment: settings.teacher_comment || '',
+    principalComment: settings.principal_comment || '',
+    promotionDecision: settings.promotion_decision || '',
     classTeacherName: settings.class_teacher_name || '',
     principalName: settings.principal_name || '',
     generatedAt: new Date().toISOString(),

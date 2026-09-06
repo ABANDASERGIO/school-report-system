@@ -23,12 +23,6 @@ function singleImage(field: string) {
 }
 
 /**
- * POST /api/v1/uploads/:kind
- * Upload a single image. kind: 'student' | 'teacher' | 'school-logo'.
- */
-router.post('/:kind', singleImage('file'), uploadController.upload);
-
-/**
  * POST /api/v1/uploads/school-logo
  * Upload the school logo and persist the resulting URL to the school_logo setting.
  * Proprietor only.
@@ -39,6 +33,12 @@ router.post(
   singleImage('file'),
   uploadController.uploadSchoolLogo
 );
+
+/**
+ * POST /api/v1/uploads/:kind
+ * Upload a single image. kind: 'student' | 'teacher' | 'school-logo'.
+ */
+router.post('/:kind', singleImage('file'), uploadController.upload);
 
 /**
  * DELETE /api/v1/uploads/:publicId
