@@ -83,7 +83,7 @@ export default function SignupPage() {
         message: "Your proprietor account is ready.",
       });
 
-      router.push("/");
+      router.push("/dashboard");
     } catch (err: any) {
       setErrors({ _form: err.message || "Signup failed. Please try again." });
     } finally {

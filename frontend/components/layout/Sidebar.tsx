@@ -41,7 +41,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       >
         {/* Logo */}
         <div className="flex items-center justify-between h-16 px-6 border-b border-white/10">
-          <Link href="/" className="flex items-center gap-2.5" onClick={onClose}>
+          <Link href="/dashboard" className="flex items-center gap-2.5" onClick={onClose}>
             <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-white">
               <Image src="/logo.png" alt={`${APP_NAME} logo`} fill sizes="32px" className="object-contain p-0.5" />
             </div>

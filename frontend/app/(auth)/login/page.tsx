@@ -62,7 +62,7 @@ export default function LoginPage() {
         message: "You have been logged in successfully.",
       });
 
-      router.push("/");
+      router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Login failed. Please try again.");
     } finally {

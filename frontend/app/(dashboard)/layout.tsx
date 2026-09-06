@@ -23,7 +23,7 @@ function FirstTimeSetup() {
 
   React.useEffect(() => {
     if (activeSession) {
-      router.replace("/");
+      router.replace("/dashboard");
     }
   }, [activeSession, router]);
 
@@ -54,7 +54,7 @@ function FirstTimeSetup() {
       // Refresh the AcademicYear context to pick up the new session.
       await setActiveSession(session.id);
       showToast({ type: "success", title: "Academic Year created", message: `${session.name} is now active.` });
-      router.replace("/");
+      router.replace("/dashboard");
     } catch (err: any) {
       console.error("First-time setup failed:", err);
       showToast({ type: "error", title: "Failed to create academic year", message: err?.message });
