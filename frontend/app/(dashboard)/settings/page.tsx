@@ -23,6 +23,9 @@ const SETTING_LABELS: Record<string, string> = {
   school_logo: "School Logo URL",
   principal_name: "Principal Name",
   class_teacher_name: "Default Class Teacher Name",
+  teacher_comment: "Class Teacher Comment",
+  principal_comment: "Principal Comment",
+  promotion_decision: "Promotion Decision",
   attendance_days: "Total School Days",
   attendance_present: "Total Days Present (default)",
   grading_system: "Grading System",
@@ -232,7 +235,7 @@ export default function SettingsPage() {
   }
 
   const schoolInfoKeys = ["school_name", "school_motto", "school_address", "school_phone", "school_email"];
-  const reportCardHeaderKeys = ["principal_name", "class_teacher_name", "attendance_days", "attendance_present"];
+  const reportCardHeaderKeys = ["principal_name", "class_teacher_name", "teacher_comment", "principal_comment", "promotion_decision", "attendance_days", "attendance_present"];
   const academicConfigKeys = ["grading_system", "max_score", "pass_mark", "academic_year_format"];
 
   return (
