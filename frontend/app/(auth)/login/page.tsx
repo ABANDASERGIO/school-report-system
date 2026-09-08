@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { APP_NAME, APP_TAGLINE } from "@/lib/constants";
-import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -71,7 +71,18 @@ export default function LoginPage() {
   };
 
   return (
-    <Card className="shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md">
+        <Button
+          variant="ghost"
+          size="sm"
+          leftIcon={<ArrowLeft className="h-4 w-4" />}
+          onClick={() => router.push("/")}
+          className="mb-4"
+        >
+          Back to Home
+        </Button>
+        <Card className="shadow-lg">
       <CardContent>
         {/* Logo & Branding */}
         <div className="text-center mb-8">
@@ -152,6 +163,8 @@ export default function LoginPage() {
         )}
       </CardContent>
     </Card>
+      </div>
+    </div>
   );
 }
 

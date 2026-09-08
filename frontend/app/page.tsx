@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   FileText,
   UserCheck,
+  WifiOff,
 } from "lucide-react";
 
 const features = [
