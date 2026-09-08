@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { UserRole } from '@prisma/client';
 import { auditLogService } from '../services/audit-log.service';
 import { successResponse } from '../utils/response';
 import { ApiErrorClass } from '../utils/response';
@@ -10,7 +11,7 @@ export const auditLogController = {
    */
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      if (!req.user || req.user.role !== 'PROPRIETOR') {
+      if (!req.user || req.user.role !== UserRole.PROPRIETOR) {
         throw new ApiErrorClass(
           403,
           'Only the proprietor can view audit logs',

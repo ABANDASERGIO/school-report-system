@@ -140,6 +140,17 @@ export default function ForgotPasswordPage() {
   };
 
   return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md">
+        <Button
+          variant="ghost"
+          size="sm"
+          leftIcon={<ArrowLeft className="h-4 w-4" />}
+          onClick={() => router.push("/")}
+          className="mb-4"
+        >
+          Back to Home
+        </Button>
     <Card className="shadow-lg">
       <CardContent>
         <div className="text-center mb-8">
@@ -322,5 +333,7 @@ export default function ForgotPasswordPage() {
         </div>
       </CardContent>
     </Card>
+      </div>
+    </div>
   );
 }

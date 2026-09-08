@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { UserRole } from '@prisma/client';
 import {
   buildProprietorDashboard,
   buildTeacherDashboard,
@@ -17,7 +18,7 @@ export const dashboardController = {
       if (!req.user) {
         throw new ApiErrorClass(401, 'Authentication required', 'Unauthorized');
       }
-      if (req.user.role !== 'PROPRIETOR') {
+      if (req.user.role !== UserRole.PROPRIETOR) {
         throw new ApiErrorClass(
           403,
           'Only the proprietor can access this dashboard',
@@ -40,7 +41,7 @@ export const dashboardController = {
       if (!req.user) {
         throw new ApiErrorClass(401, 'Authentication required', 'Unauthorized');
       }
-      if (req.user.role !== 'TEACHER') {
+      if (req.user.role !== UserRole.TEACHER) {
         throw new ApiErrorClass(
           403,
           'Only a teacher can access this dashboard',
