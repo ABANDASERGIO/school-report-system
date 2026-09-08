@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { VerificationPurpose } from '@prisma/client';
+import { VerificationPurpose, UserRole } from '@prisma/client';
 import { authService } from '../services/auth.service';
 import { verificationCodeService } from '../services/verification-code.service';
 import { successResponse } from '../utils/response';
@@ -97,7 +97,7 @@ export const authController = {
       if (!user) {
         throw new ApiErrorClass(404, 'No account found with that email.', 'UserNotFound');
       }
-      if (user.role !== 'PROPRIETOR') {
+      if (user.role !== UserRole.PROPRIETOR) {
         throw new ApiErrorClass(
           403,
           'This recovery page is for proprietor accounts only.',
@@ -143,7 +143,7 @@ export const authController = {
         input.purpose === VerificationPurpose.RESET_PASSWORD
       ) {
         const user = await authService.findUserByEmail(email);
-        if (!user || user.role !== 'PROPRIETOR') {
+        if (!user || user.role !== UserRole.PROPRIETOR) {
           // Don't reveal whether the email exists. Return a generic success.
           res
             .status(200)
