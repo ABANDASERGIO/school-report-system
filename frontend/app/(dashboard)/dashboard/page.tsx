@@ -5,6 +5,8 @@ import Link from "next/link";
 import { dashboardService } from "@/services/dashboard.service";
 import { useAuth } from "@/providers/AuthProvider";
 import { useAcademicYear } from "@/providers/AcademicYearProvider";
+import { useOnlineSync } from "@/providers/OnlineSyncProvider";
+import { OfflineError } from "@/lib/api-client";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { StatsSkeleton } from "@/components/ui/Skeleton";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
@@ -22,13 +24,17 @@ import {
   ArrowRight,
   BookCopy,
   Settings,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const { activeSession } = useAcademicYear();
+  const { online, lastSyncedAt } = useOnlineSync();
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isOfflineData, setIsOfflineData] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -40,7 +46,11 @@ export default function DashboardPage() {
           const data = await dashboardService.getTeacherDashboard(user?.id || "");
           setDashboardData(data);
         }
+        setIsOfflineData(false);
       } catch (err) {
+        if (err instanceof OfflineError) {
+          setIsOfflineData(true);
+        }
         console.error("Failed to load dashboard", err);
       } finally {
         setIsLoading(false);
@@ -62,14 +72,65 @@ export default function DashboardPage() {
 
   const currentSessionName = activeSession?.name || dashboardData?.currentSession?.name || "N/A";
 
+  const OfflineBanner = () => (
+    <div className={
+      `flex items-center gap-3 px-4 py-3 rounded-lg mb-4
+       ${online
+         ? 'bg-green-50 border border-green-200 text-green-800'
+         : 'bg-amber-50 border border-amber-200 text-amber-800'
+      }`
+    }>
+      {online ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+      <span className="text-sm font-medium">
+        {online
+          ? 'Online — all data is up to date'
+          : isOfflineData
+            ? 'You are offline — showing cached data'
+            : 'You are offline — no cached data available'
+        }
+      </span>
+      {!online && lastSyncedAt && (
+        <span className="text-xs opacity-75">
+          (last synced: {new Date(lastSyncedAt).toLocaleTimeString()})
+        </span>
+      )}
+    </div>
+  );
+
   // Teacher Dashboard
   if (user?.role === UserRole.TEACHER && dashboardData) {
-    return <TeacherDashboard data={dashboardData} currentSessionName={currentSessionName} />;
+    return (
+      <>
+        <OfflineBanner />
+        <TeacherDashboard data={dashboardData} currentSessionName={currentSessionName} />
+      </>
+    );
   }
 
   // Proprietor Dashboard
   if (user?.role === UserRole.PROPRIETOR && dashboardData) {
-    return <ProprietorDashboard data={dashboardData} currentSessionName={currentSessionName} />;
+    return (
+      <>
+        <OfflineBanner />
+        <ProprietorDashboard data={dashboardData} currentSessionName={currentSessionName} />
+      </>
+    );
+  }
+
+  // Offline with no cached data
+  if (!online && !dashboardData) {
+    return (
+      <div className="space-y-6">
+        <OfflineBanner />
+        <div className="text-center py-12">
+          <WifiOff className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-primary mb-2">No cached data available</h3>
+          <p className="text-sm text-gray-500">
+            Connect to the internet and reload to load your dashboard data.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return null;

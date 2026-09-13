@@ -21,7 +21,7 @@ export interface NavItem {
 }
 
 export const proprietorNavItems: NavItem[] = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Students", href: "/students", icon: GraduationCap },
   { label: "Teachers", href: "/teachers", icon: Users },
   { label: "Classes", href: "/classes", icon: School },
@@ -34,7 +34,7 @@ export const proprietorNavItems: NavItem[] = [
 ];
 
 export const teacherNavItems: NavItem[] = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "My Classes", href: "/results/entry", icon: ClipboardPen },
   { label: "My Results", href: "/results", icon: ClipboardList },
 ];

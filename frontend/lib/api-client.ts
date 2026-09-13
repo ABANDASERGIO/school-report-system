@@ -18,6 +18,15 @@ export type ApiResponse<T> = ApiSuccess<T> | ApiError;
 const STORAGE_TOKEN_KEY = 'edugrade_token';
 const STORAGE_REFRESH_KEY = 'edugrade_refresh_token';
 const STORAGE_USER_KEY = 'edugrade_user';
+const CACHE_PREFIX = 'edugrade_api_cache_';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+export class OfflineError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OfflineError';
+  }
+}
 
 function sanitizeErrorMessage(message: string): string {
   const lower = message.toLowerCase();
@@ -95,6 +104,36 @@ class ApiClient {
     return !!this.accessToken;
   }
 
+  private getCacheKey(endpoint: string): string {
+    return `${CACHE_PREFIX}${endpoint}`;
+  }
+
+  private cacheResponse(endpoint: string, data: unknown): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const payload = JSON.stringify({ data, ts: Date.now() });
+      localStorage.setItem(this.getCacheKey(endpoint), payload);
+    } catch {
+      // ignore quota errors
+    }
+  }
+
+  private tryGetCached<T>(endpoint: string): T | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(this.getCacheKey(endpoint));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (Date.now() - parsed.ts > CACHE_TTL_MS) {
+        localStorage.removeItem(this.getCacheKey(endpoint));
+        return null;
+      }
+      return parsed.data as T;
+    } catch {
+      return null;
+    }
+  }
+
   private subscribeTokenRefresh(callback: (token: string) => void) {
     this.refreshSubscribers.push(callback);
   }
@@ -162,9 +201,12 @@ class ApiClient {
     try {
       response = await fetch(url, { ...options, headers });
     } catch (networkError) {
-      console.error(`[API] Network error for ${endpoint}:`, networkError);
-      throw new Error(
-        'Cannot reach the server. Please check your internet connection and try again.'
+      const cached = this.tryGetCached<T>(endpoint);
+      if (cached !== null) {
+        return cached;
+      }
+      throw new OfflineError(
+        'You are offline. Showing cached data where available.'
       );
     }
 
@@ -178,7 +220,13 @@ class ApiClient {
         if (refreshed) {
           // Retry original request with new token
           headers['Authorization'] = `Bearer ${this.accessToken}`;
-          response = await fetch(url, { ...options, headers });
+          try {
+            response = await fetch(url, { ...options, headers });
+          } catch {
+            const cachedRetry = this.tryGetCached<T>(endpoint);
+            if (cachedRetry !== null) return cachedRetry;
+            throw new OfflineError('You are offline. Showing cached data where available.');
+          }
         } else {
           // Refresh failed, clear auth
           this.clearAuth();
@@ -209,6 +257,10 @@ class ApiClient {
     if (!body.success) {
       const sanitized = sanitizeErrorMessage(body.message || `Request failed with status ${response.status}`);
       throw new Error(sanitized);
+    }
+
+    if (options.method === 'GET' || !options.method) {
+      this.cacheResponse(endpoint, body.data);
     }
 
     return body.data;
