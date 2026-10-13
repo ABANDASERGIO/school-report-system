@@ -312,4 +312,81 @@ export const enrollmentService = {
     }
     await prisma.enrollment.delete({ where: { id } });
   },
+
+  /**
+   * Promote students from one session to the next.
+   * Reads all ACTIVE enrollments in the source session, and for each one
+   * creates a new enrollment in the target session with the student's
+   * next class (based on Class.nextClassId).
+   * Returns counts of promoted, skipped (no next class), and failed.
+   */
+  async promoteStudents(
+    fromSessionId: string,
+    toSessionId: string
+  ): Promise<{ promoted: number; skipped: number; failed: number }> {
+    if (fromSessionId === toSessionId) {
+      throw new ApiErrorClass(400, 'Cannot promote within the same session', 'InvalidSession');
+    }
+
+    // Get all active enrollments in the source session with class info
+    const sourceEnrollments = await prisma.enrollment.findMany({
+      where: { sessionId: fromSessionId, status: 'ACTIVE' },
+      include: {
+        class: { include: { nextClass: true } },
+        student: { select: { id: true } },
+      },
+    });
+
+    let promoted = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const e of sourceEnrollments) {
+      // Check if the class has a defined next class
+      if (!e.class.nextClassId) {
+        skipped++;
+        continue;
+      }
+
+      // Check if enrollment already exists in target session
+      const existing = await prisma.enrollment.findUnique({
+        where: {
+          studentId_classId_sessionId: {
+            studentId: e.studentId,
+            classId: e.class.nextClassId!,
+            sessionId: toSessionId,
+          },
+        },
+      });
+
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
+      try {
+        await prisma.enrollment.create({
+          data: {
+            studentId: e.studentId,
+            classId: e.class.nextClassId!,
+            sessionId: toSessionId,
+            status: 'ACTIVE',
+            enrollmentDate: new Date(),
+          },
+        });
+        promoted++;
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          skipped++;
+        } else {
+          failed++;
+        }
+      }
+    }
+
+    return { promoted, skipped, failed };
+  },
 };

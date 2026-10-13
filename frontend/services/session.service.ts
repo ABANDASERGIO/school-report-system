@@ -31,7 +31,7 @@ export const sessionService = {
     }
   },
 
-  async createSession(data: CreateSessionRequest & { carryForward?: boolean }): Promise<AcademicSession> {
+  async createSession(data: CreateSessionRequest & { carryForward?: boolean; promoteStudents?: boolean }): Promise<AcademicSession> {
     return apiClient.post<AcademicSession>('/sessions', data);
   },
 
@@ -40,6 +40,13 @@ export const sessionService = {
     carryForward: boolean
   ): Promise<AcademicSession> {
     return apiClient.post<AcademicSession>('/sessions', { ...data, carryForward });
+  },
+
+  async createSessionWithOptions(
+    data: CreateSessionRequest,
+    options: { carryForward: boolean; promoteStudents: boolean }
+  ): Promise<AcademicSession> {
+    return apiClient.post<AcademicSession>('/sessions', { ...data, ...options });
   },
 
   async updateSession(id: string, data: Partial<AcademicSession>): Promise<AcademicSession> {

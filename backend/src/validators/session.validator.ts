@@ -12,6 +12,7 @@ export const createSessionSchema = z
     endDate: isoDate,
     isCurrent: z.boolean().default(false),
     carryForward: z.boolean().default(false),
+    promoteStudents: z.boolean().default(false),
   })
   .refine((data) => data.endDate > data.startDate, {
     message: 'End date must be after start date',

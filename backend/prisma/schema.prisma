@@ -131,6 +131,7 @@ model Class {
   name        String   @unique
   code        String   @unique
   description String?
+  nextClassId String?  // For student promotion: which class students move to next year
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -141,6 +142,9 @@ model Class {
   enrollments    Enrollment[]
   // Restrict: Cannot delete a Class with historical Assignments.
   assignments    Assignment[]
+  // Self-referential for promotion chain (many classes can promote to the same next class)
+  nextClass      Class?   @relation("ClassPromotion", fields: [nextClassId], references: [id], onDelete: SetNull)
+  previousClasses Class[] @relation("ClassPromotion")
 
   @@index([name])
   @@index([code])

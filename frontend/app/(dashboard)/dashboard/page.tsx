@@ -70,32 +70,26 @@ export default function DashboardPage() {
     );
   }
 
-  const currentSessionName = activeSession?.name || dashboardData?.currentSession?.name || "N/A";
+const currentSessionName = activeSession?.name || dashboardData?.currentSession?.name || "N/A";
 
-  const OfflineBanner = () => (
-    <div className={
-      `flex items-center gap-3 px-4 py-3 rounded-lg mb-4
-       ${online
-         ? 'bg-green-50 border border-green-200 text-green-800'
-         : 'bg-amber-50 border border-amber-200 text-amber-800'
-      }`
-    }>
-      {online ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-      <span className="text-sm font-medium">
-        {online
-          ? 'Online — all data is up to date'
-          : isOfflineData
+  const OfflineBanner = () => {
+    if (online) return null;
+    return (
+      <div className="flex items-center gap-3 px-4 py-3 rounded-lg mb-4 bg-amber-50 border border-amber-200 text-amber-800">
+        <WifiOff className="h-4 w-4" />
+        <span className="text-sm font-medium">
+          {isOfflineData
             ? 'You are offline — showing cached data'
-            : 'You are offline — no cached data available'
-        }
-      </span>
-      {!online && lastSyncedAt && (
-        <span className="text-xs opacity-75">
-          (last synced: {new Date(lastSyncedAt).toLocaleTimeString()})
+            : 'You are offline — no cached data available'}
         </span>
-      )}
-    </div>
-  );
+        {lastSyncedAt && (
+          <span className="text-xs opacity-75">
+            (last synced: {new Date(lastSyncedAt).toLocaleTimeString()})
+          </span>
+        )}
+      </div>
+    );
+  };
 
   // Teacher Dashboard
   if (user?.role === UserRole.TEACHER && dashboardData) {
