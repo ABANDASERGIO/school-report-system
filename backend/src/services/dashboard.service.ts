@@ -71,6 +71,7 @@ export interface TeacherDashboardData {
  */
 export async function buildProprietorDashboard(): Promise<ProprietorDashboardData> {
   const current = await sessionService.getCurrentSession();
+  const sessionFilter = current ? { sessionId: current.id } : {};
 
   const [
     totalStudents,
@@ -89,6 +90,7 @@ export async function buildProprietorDashboard(): Promise<ProprietorDashboardDat
     prisma.subject.count(),
     prisma.result.groupBy({
       by: ['status'],
+      where: sessionFilter,
       _count: { _all: true },
     }),
     current
@@ -96,7 +98,7 @@ export async function buildProprietorDashboard(): Promise<ProprietorDashboardDat
           where: { sessionId: current.id, status: 'ACTIVE' },
         })
       : Promise.resolve(0),
-    prisma.assignment.count(),
+    prisma.assignment.count({ where: sessionFilter }),
   ]);
 
   const counts = { draft: 0, submitted: 0, locked: 0 };

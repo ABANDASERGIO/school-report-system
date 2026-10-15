@@ -2,6 +2,7 @@ import { AcademicSession, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { ApiErrorClass } from '../utils/response';
 import type { CreateSessionInput, UpdateSessionInput } from '../validators/session.validator';
+import { enrollmentService } from './enrollment.service';
 
 export interface SessionResponse {
   id: string;
@@ -70,7 +71,8 @@ export const sessionService = {
   /**
    * Create a new academic session. If isCurrent is true, all other sessions
    * are marked as not current (only one session can be current at a time).
-   * Optionally carries forward assignments from the most recent prior session.
+   * Optionally carries forward assignments and/or promotes students from the
+   * most recent prior session.
    */
   async createSession(input: CreateSessionInput): Promise<SessionResponse> {
     // Check for duplicate name
@@ -88,6 +90,14 @@ export const sessionService = {
     // If this is the first session, force isCurrent = true
     const totalSessions = await prisma.academicSession.count();
     const isCurrent = totalSessions === 0 ? true : input.isCurrent;
+
+    // Find the most recent prior session for carry-forward / promotion
+    const previousSession = totalSessions > 0
+      ? await prisma.academicSession.findFirst({
+          where: { startDate: { lt: new Date(input.startDate) } },
+          orderBy: { startDate: 'desc' },
+        })
+      : null;
 
     const newSession = await prisma.$transaction(async (tx) => {
       // If marking as current, unmark all others
@@ -109,18 +119,14 @@ export const sessionService = {
       });
     });
 
-    // Carry forward assignments if requested (after session is created)
-    if (input.carryForward && totalSessions > 0) {
-      // Find the most recent prior session
-      const previousSession = await prisma.academicSession.findFirst({
-        where: {
-          startDate: { lt: newSession.startDate },
-        },
-        orderBy: { startDate: 'desc' },
-      });
-      if (previousSession) {
-        await this.carryForwardAssignments(previousSession.id, newSession.id);
-      }
+    // Carry forward assignments if requested
+    if (input.carryForward && previousSession) {
+      await this.carryForwardAssignments(previousSession.id, newSession.id);
+    }
+
+    // Promote students if requested
+    if (input.promoteStudents && previousSession) {
+      await enrollmentService.promoteStudents(previousSession.id, newSession.id);
     }
 
     // Auto-create 3 default terms with 2 sequences each
