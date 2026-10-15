@@ -14,7 +14,7 @@ export default function CreateSubjectPage() {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
-  const [formData, setFormData] = useState({ name: "", code: "", description: "", coefficient: 1 });
+  const [formData, setFormData] = useState({ name: "", code: "", description: "", coefficient: "" });
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -26,7 +26,10 @@ export default function CreateSubjectPage() {
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) newErrors.name = "Subject name is required";
     if (!formData.code.trim()) newErrors.code = "Subject code is required";
-    if (formData.coefficient < 1) newErrors.coefficient = "Coefficient must be at least 1";
+    const coefficient = Number(formData.coefficient);
+    if (!formData.coefficient || !Number.isInteger(coefficient) || coefficient < 1 || coefficient > 10) {
+      newErrors.coefficient = "Coefficient must be a whole number from 1 to 10";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -36,7 +39,10 @@ export default function CreateSubjectPage() {
     if (!validate()) return;
     setIsSaving(true);
     try {
-      const subject = await subjectService.createSubject(formData);
+      const subject = await subjectService.createSubject({
+        ...formData,
+        coefficient: Number(formData.coefficient),
+      });
       const { subjectClassService } = await import("@/services/subject-class.service");
       await subjectClassService.setClassesForSubject(subject.id, selectedClasses);
       showToast({ type: "success", title: "Subject created" });
@@ -73,7 +79,7 @@ export default function CreateSubjectPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input label="Subject Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} error={errors.name} placeholder="e.g., Mathematics" />
             <Input label="Subject Code" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} error={errors.code} placeholder="e.g., MATH" />
-            <Input label="Coefficient" type="number" min={1} max={10} value={formData.coefficient} onChange={(e) => setFormData({ ...formData, coefficient: parseInt(e.target.value) || 1 })} error={errors.coefficient} />
+            <Input label="Coefficient" type="number" min={1} max={10} value={formData.coefficient} onChange={(e) => setFormData({ ...formData, coefficient: e.target.value })} error={errors.coefficient} />
             <Input label="Description (optional)" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Brief description" />
 
             <div>
